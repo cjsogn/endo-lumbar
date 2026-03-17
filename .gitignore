@@ -1,0 +1,31 @@
+# Data (not shareable - NORspine registry)
+data/*.rds
+data/*.sav
+data/*.csv
+!data/README.md
+
+# Model fits (large binary files)
+results/*.rds
+models/
+supplementary_followup_eligible/models/
+supplementary_followup_eligible/results/
+
+# PyMC outputs (kept internally, not in publication)
+*.npy
+*.nc
+tables/pymc_*.csv
+tables/table_pymc_*.csv
+
+# R/Python artifacts
+.Rhistory
+.RData
+Rplots.pdf
+__pycache__/
+*.pyc
+.DS_Store
+
+# Word temp files
+~$*.docx
+
+# Backup figures
+figures/supplement/_backup/
