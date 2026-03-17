@@ -1,6 +1,6 @@
 # ENDO-LUMBAR: Endoscopic vs Microsurgical Lumbar Discectomy
 
-Analysis code and manuscript materials for:
+Analysis code for:
 
 **Endoscopic vs Microsurgical Discectomy for Lumbar Disc Herniation During Technique Adoption: A Bayesian Non-Inferiority Study**
 
@@ -20,39 +20,38 @@ Pre-registered on OSF Registries: https://osf.io/82qra/
 ## Repository structure
 
 ```
-ENDO_LUMBAR/
-├── scripts/
-│   ├── analysis/              # Core analysis pipeline (34 scripts)
-│   │   ├── 00_config.R        # Shared configuration and parameters
-│   │   ├── 01-21_*.R          # R analysis pipeline
-│   │   ├── 22_pymc_bayesian.py # Primary PyMC Bayesian G-computation
-│   │   ├── 22a-d_*.R/py       # Data export and model refitting
-│   │   ├── 23-25_*.R/py       # Output assembly and figure updates
-│   │   └── run_all.R          # Master pipeline runner
-│   └── manuscript/            # Document generation scripts (12 scripts)
-│       └── generate_*.py/R    # Reproducible .docx generation from CSVs
-├── manuscript/
-│   ├── main/                  # Main text, tables, and figure legends
-│   ├── supplement/            # eAppendix, eTables
-│   └── submission/            # Cover letter, checklists, RIS references
-├── figures/
-│   ├── main/                  # Figures 1-3
-│   └── supplement/            # eFigures 1-22
-├── tables/                    # Analysis output CSVs (39 files)
-├── results/                   # Model objects (.rds, 17 files)
-├── diagnostics/               # MCMC diagnostic plots
-├── complete_case/             # Complete-case sensitivity tables
-├── supplementary_followup_eligible/  # Follow-up eligible sensitivity
-│   ├── scripts/
-│   ├── results/
-│   ├── data/
-│   └── models/
-└── data/                      # Not included (see data/README.md)
+scripts/analysis/
+├── 00_config.R              # Shared configuration, paths, parameters, seed
+├── 01_data_preparation.R    # NORspine import, cohort assembly, covariate coding
+├── 02_descriptive_table1.R  # Baseline characteristics (Table 1)
+├── 03_propensity_balance.R  # Propensity score estimation, covariate balance
+├── 04_primary_analysis.R    # Primary outcome: brms ZIB, G-computation ATE
+├── 05_mcmc_diagnostics.R    # Convergence checks (Rhat, ESS, divergences)
+├── 06_secondary_effectiveness.R  # Tier 2 outcomes (NRS, EQ-5D, responder, RTW)
+├── 07_perioperative_superiority.R # Tier 3 outcomes (day surgery, LOS, complications)
+├── 08_descriptive_tier4.R   # Operating time, negative control outcome
+├── 09_prior_sensitivity.R   # Skeptical, reference, diffuse prior comparison
+├── 10_missing_data_sensitivity.R  # Pattern-mixture, tipping-point, selection model
+├── 11_model_sensitivity.R   # Alternative likelihoods, horseshoe, restricted covariates
+├── 12_falsification_evalue.R # E-values, falsification tests, negative control
+├── 13_subgroups_causal_forest.R   # Bayesian subgroup interactions, causal forest
+├── 14_stenosis_exploratory.R      # Concomitant stenosis subgroup
+├── 15_tables_figures.R      # Summary tables from model results
+├── 16_covariate_influence.R # Projpred variable selection
+├── 17_eld_approach_comparison.R   # Interlaminar vs transforaminal
+├── 18_learning_curve.R      # Operating time and ODI vs case number
+├── 19_odi_spider_plot.R     # ODI domain profiles
+├── 20_publication_figures.R # Main and supplementary figures
+├── 21_frequentist_tmle.R    # TMLE with SuperLearner cross-validation
+├── 23b_update_figures_2_3.R # Regenerate primary figures from brms results
+├── 24_causal_diagram.R      # DAG visualization
+├── 25_update_causal_outputs.R     # Causal inference summary tables
+└── run_all.R                # Master pipeline runner
 ```
 
 ## Analysis pipeline
 
-The analysis pipeline runs sequentially from scripts 00 through 25. Key stages:
+The pipeline runs sequentially from scripts 00 through 25:
 
 | Scripts | Stage | Description |
 |---------|-------|-------------|
@@ -66,20 +65,17 @@ The analysis pipeline runs sequentially from scripts 00 through 25. Key stages:
 | 14 | Exploratory | Concomitant stenosis subgroup |
 | 15-20 | Outputs | Tables, figures, publication formatting |
 | 21 | Cross-validation | Frequentist TMLE with SuperLearner |
-| 22-22d | PyMC models | Primary Bayesian G-computation (Python) |
-| 23-25 | Integration | Merge PyMC results, update figures and outputs |
+| 23b-25 | Integration | Update figures and causal outputs |
 
 ## Software
 
-- **R 4.5**: brms, grf, projpred, EValue, tmle3, sl3, ggplot2
-- **Python 3.12**: PyMC 5.26.1, ArviZ 0.22.0, NumPy, pandas
-- **Document generation**: python-docx
+- **R 4.5**: brms (cmdstanr backend), grf, projpred, EValue, tmle3, sl3, ggplot2
 
 ## Data availability
 
 Individual patient data can be requested through the NORspine registry application
-process. See `data/README.md` for details. All analysis scripts are provided in
-this repository.
+process. All analysis scripts are provided in this repository for transparency and
+reproducibility.
 
 ## License
 
