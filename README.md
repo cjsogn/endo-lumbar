@@ -43,9 +43,6 @@ scripts/analysis/
 ├── 19_odi_spider_plot.R     # ODI domain profiles
 ├── 20_publication_figures.R # Main and supplementary figures
 ├── 21_frequentist_tmle.R    # TMLE with SuperLearner cross-validation
-├── 23b_update_figures_2_3.R # Regenerate primary figures from brms results
-├── 24_causal_diagram.R      # DAG visualization
-├── 25_update_causal_outputs.R     # Causal inference summary tables
 └── run_all.R                # Master pipeline runner
 ```
 
@@ -65,7 +62,6 @@ The pipeline runs sequentially from scripts 00 through 25:
 | 14 | Exploratory | Concomitant stenosis subgroup |
 | 15-20 | Outputs | Tables, figures, publication formatting |
 | 21 | Cross-validation | Frequentist TMLE with SuperLearner |
-| 23b-25 | Integration | Update figures and causal outputs |
 
 ## Software
 
