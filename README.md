@@ -35,12 +35,9 @@ scripts/analysis/
 ├── 11_model_sensitivity.R   # Alternative likelihoods, horseshoe, restricted covariates
 ├── 12_falsification_evalue.R # E-values, falsification tests, negative control
 ├── 13_subgroups_causal_forest.R   # Bayesian subgroup interactions, causal forest
-├── 14_stenosis_exploratory.R      # Concomitant stenosis subgroup
 ├── 15_tables_figures.R      # Summary tables from model results
-├── 16_covariate_influence.R # Projpred variable selection
 ├── 17_eld_approach_comparison.R   # Interlaminar vs transforaminal
 ├── 18_learning_curve.R      # Operating time and ODI vs case number
-├── 19_odi_spider_plot.R     # ODI domain profiles
 ├── 20_publication_figures.R # Main and supplementary figures
 ├── 21_frequentist_tmle.R    # TMLE with SuperLearner cross-validation
 └── run_all.R                # Master pipeline runner
@@ -59,7 +56,6 @@ The pipeline runs sequentially from scripts 00 through 25:
 | 09-11 | Sensitivity | Prior, missing data, and model specification sensitivity |
 | 12 | Causal diagnostics | E-value, falsification tests, negative control |
 | 13 | Heterogeneity | Subgroup interactions, causal forests |
-| 14 | Exploratory | Concomitant stenosis subgroup |
 | 15-20 | Outputs | Tables, figures, publication formatting |
 | 21 | Cross-validation | Frequentist TMLE with SuperLearner |
 
