@@ -1,32 +1,40 @@
 # =============================================================================
 # ENDO-LUMBAR: 13 Subgroup Analyses and Causal Forest
-# SAP Section 22
 # =============================================================================
 
-source("/Users/cjsogn/endo_studies/lumbar/analysis/scripts/00_config.R")
+source("/Users/cjsogn/ENDO_LUMBAR/scripts/analysis/00_config.R")
 
 df_disc <- readRDS(file.path(paths$data_clean, "df_disc_imp.rds"))
 primary_results <- readRDS(file.path(paths$output, "primary_results.rds"))
 
-cat("=== Subgroup Analyses and Causal Forest (SAP Section 22) ===\n")
-cat("Note: All subgroup analyses are exploratory. No multiplicity adjustment.\n")
+cat("=== Subgroup Analyses and Causal Forest (Exploratory) ===\n")
 
 # Prepare data (standardize_covs and cov_string from 00_config.R)
 df_disc <- standardize_covs(df_disc)
 
-# ZOIB transformation for ODI; filter to complete cases (mi() not supported for ZOIB)
+df_disc_full <- df_disc
+
+# ZIB transformation for ODI; filter to complete cases (mi() not supported for ZIB)
 df_disc <- df_disc %>% filter(!is.na(odi_3m))
-df_disc$odi_3m_zoib <- transform_for_zoib(df_disc$odi_3m, upper = 100)
-cat(sprintf("Complete cases for subgroup analysis: %d\n", nrow(df_disc)))
+df_disc$odi_3m_zib <- transform_for_zib(df_disc$odi_3m, upper = 100)
+cat(sprintf("Complete cases for subgroup analysis: %d / %d total\n", nrow(df_disc), nrow(df_disc_full)))
 
 # =============================================================================
-# 22.1 PRE-SPECIFIED SUBGROUPS
+# PRE-SPECIFIED SUBGROUPS
 # =============================================================================
 
-cat("\n--- 22.1 Pre-Specified Subgroup Analyses ---\n")
+cat("\n--- Pre-Specified Subgroup Analyses ---\n")
 
 # Define subgroups
+# Create subgroup variables on both filtered and full datasets
 df_disc <- df_disc %>%
+  mutate(
+    subgroup_age = ifelse(age < 50, "<50", ">=50"),
+    subgroup_severity = ifelse(odi_baseline < 40, "ODI<40", "ODI>=40"),
+    subgroup_symptom = ifelse(symptom_duration_leg <= 3, "Short", "Long"),
+    subgroup_levels = ifelse(multilevel == 1, "Multilevel", "Single")
+  )
+df_disc_full <- df_disc_full %>%
   mutate(
     subgroup_age = ifelse(age < 50, "<50", ">=50"),
     subgroup_severity = ifelse(odi_baseline < 40, "ODI<40", "ODI>=40"),
@@ -46,9 +54,9 @@ subgroup_results <- list()
 for (sg in subgroups) {
   cat(sprintf("\n  %s:\n", sg$label))
 
-  # Add interaction term (ZOIB model for ODI)
+  # Add interaction term (ZIB model for ODI)
   interaction_formula <- bf(
-    as.formula(paste("odi_3m_zoib ~ treatment *", sg$var, "+", cov_string)),
+    as.formula(paste("odi_3m_zib ~ treatment *", sg$var, "+", cov_string)),
     zi ~ treatment + odi_baseline_z
   )
 
@@ -69,18 +77,18 @@ for (sg in subgroups) {
     cores = min(mcmc_settings$chains, n_cores),
     seed = mcmc_settings$seed,
     control = list(adapt_delta = 0.95),
-    file = file.path(paths$models, paste0("fit_subgroup_zoib_", sg$var)),
+    file = file.path(paths$models, paste0("fit_subgroup_zib_", sg$var)),
     file_refit = "on_change"
   )
 
-  # Compute ATE in each subgroup (scale ZOIB -> ODI)
+  # Compute ATE in each subgroup (scale ZIB -> ODI)
   for (level in unique(df_disc[[sg$var]])) {
-    df_sub <- df_disc %>% filter(.data[[sg$var]] == level)
-    ate_sub <- compute_gcomp_ate(fit_sg, df_sub, "treatment", "continuous",
+    df_sub_full <- df_disc_full %>% filter(.data[[sg$var]] == level)
+    ate_sub <- compute_gcomp_ate(fit_sg, df_sub_full, "treatment", "continuous",
                                   lower_is_better = TRUE, scale_factor = 100)
     ate_sub_summary <- summarize_ate(ate_sub$ate, ni_margin = ni_margins$odi)
     cat(sprintf("    %s (n=%d): ATE=%.2f [%.2f, %.2f], P(NI)=%.3f\n",
-                level, nrow(df_sub), ate_sub_summary$mean,
+                level, nrow(df_sub_full), ate_sub_summary$mean,
                 ate_sub_summary$cri_lo, ate_sub_summary$cri_hi,
                 ate_sub_summary$p_ni))
   }
@@ -102,10 +110,10 @@ for (sg in subgroups) {
 }
 
 # =============================================================================
-# 22.2 CAUSAL FOREST
+# CAUSAL FOREST
 # =============================================================================
 
-cat("\n--- 22.2 Causal Forest ---\n")
+cat("\n--- Causal Forest ---\n")
 cat("Package: grf, num.trees=4000, honesty=TRUE\n")
 cat("Note: Restricted to patients with observed ODI 3m (complete-case for grf).\n")
 
@@ -160,13 +168,11 @@ cf <- causal_forest(
 ate_cf <- average_treatment_effect(cf, target.sample = "all")
 cat(sprintf("\nCausal forest ATE: %.2f (SE: %.2f)\n", ate_cf[1], ate_cf[2]))
 
-# Note: causal forest estimates ELD - MSD (positive = higher ODI for ELD)
-# Our convention: positive = ELD superior (lower ODI)
-# So we negate: -(ELD - MSD) = MSD - ELD
+# Negate for sign convention: positive = ELD superior (lower ODI)
 cat(sprintf("Adjusted for sign convention: %.2f\n", -ate_cf[1]))
 
 # =============================================================================
-# Calibration Test (SAP Section 22.2)
+# Calibration test
 # =============================================================================
 
 cal_test <- test_calibration(cf)
@@ -180,7 +186,7 @@ if (!is.null(p_col) && !is.na(p_col) && cal_test[2, p_col] < 0.05) {
 }
 
 # =============================================================================
-# Best Linear Projection (SAP Section 22.2)
+# Best linear projection
 # =============================================================================
 
 cat("\nBest Linear Projection:\n")
@@ -257,14 +263,12 @@ cf_results <- list(
 saveRDS(cf_results, file.path(paths$output, "causal_forest_results.rds"))
 
 # =============================================================================
-# 22.3 PROJECTION PREDICTIVE VARIABLE SELECTION (SAP Section 24.3)
+# PROJECTION PREDICTIVE VARIABLE SELECTION (projpred)
 # =============================================================================
 
-cat("\n--- 22.3 Projection Predictive Variable Selection (projpred) ---\n")
-cat("Identifies the minimal covariate subset that preserves predictive performance.\n")
+cat("\n--- Projection Predictive Variable Selection ---\n")
 
-# projpred does not support mi() models directly because the data contains NAs.
-# Refit the primary model on complete cases for projpred analysis.
+# Refit on complete cases (projpred does not support mi())
 df_cc_proj <- df_disc %>% filter(!is.na(odi_3m))
 df_cc_proj <- standardize_covs(df_cc_proj)
 

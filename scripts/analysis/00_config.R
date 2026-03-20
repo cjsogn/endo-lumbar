@@ -1,7 +1,6 @@
 # =============================================================================
 # ENDO-LUMBAR: Configuration
 # Endoscopic vs microsurgical lumbar discectomy - NORspine registry study
-# SAP Version 2.0 | February 2026
 # =============================================================================
 
 # --- Packages ----------------------------------------------------------------
@@ -57,7 +56,7 @@ if (requireNamespace("cmdstanr", quietly = TRUE) &&
 }
 options(brms.file_refit = "on_change")
 
-# MCMC settings (SAP Section 13.1)
+# MCMC settings
 mcmc_settings <- list(
   chains   = 4L,
   iter     = 2000L,
@@ -67,7 +66,7 @@ mcmc_settings <- list(
   seed     = 20260204L
 )
 
-# Convergence thresholds (SAP Section 13.1)
+# Convergence thresholds
 convergence_thresholds <- list(
   rhat_mandatory    = 1.01,
   rhat_warning      = 1.05,
@@ -77,12 +76,12 @@ convergence_thresholds <- list(
   max_divergent      = 0
 )
 
-# --- Non-inferiority margins (SAP Section 6) ---------------------------------
+# --- Non-inferiority margins --------------------------------------------------
 ni_margins <- list(
   # Tier 1 (primary)
   odi         = 7,      # ODI points (0-100 scale)
   # Tier 2 (secondary continuous)
-  nrs_pain    = 1.0,    # NRS 0-10 scale (SAP says 10 on 0-100; user confirmed 0-10 scale, margin 1.0)
+  nrs_pain    = 1.0,    # NRS 0-10 scale
   eq5d        = 0.05,   # EQ-5D index points
   # Tier 2 (secondary binary, risk difference scale)
   responder   = 0.10,   # 10 percentage points
@@ -92,17 +91,17 @@ ni_margins <- list(
   gpe         = 0.10    # 10 percentage points
 )
 
-# NI probability threshold (SAP Section 6.2)
+# NI probability threshold
 ni_threshold <- 0.95
 
-# --- Effect direction convention (SAP Section 4) ----------------------------
+# --- Effect direction convention -----------------------------------------------
 # Delta > 0 = endoscopic superior for ALL outcomes
 # For "lower is better" (ODI, NRS, LOS, complications): Delta = mu_MSD - mu_ELD
 # For "higher is better" (EQ5D, responder, RTW, day surgery): Delta = mu_ELD - mu_MSD
 # NI: P(Delta > -margin | data) > 0.95
 # Superiority: P(Delta > 0 | data) > 0.95
 
-# --- Prior distributions (SAP Section 12.3) ----------------------------------
+# --- Prior distributions -----------------------------------------------------
 priors_reference <- list(
   treatment_mean = 0,
   treatment_sd   = 10,   # Reference prior
@@ -118,7 +117,7 @@ priors_reference <- list(
 priors_skeptical <- list(treatment_sd = 4)
 priors_diffuse   <- list(treatment_sd = 25)
 
-# Binary outcome priors (SAP Section 15.2)
+# Binary outcome priors
 priors_binary <- list(
   treatment_mean = 0,
   treatment_sd   = 1,    # on log-odds scale
@@ -126,20 +125,20 @@ priors_binary <- list(
   covariate_sd   = 2
 )
 
-# --- Complication rate gating thresholds (SAP Section 6.4) -------------------
+# --- Complication rate gating thresholds --------------------------------------
 rate_gating <- list(
   formal_test = 0.10,   # >= 10%: formal superiority test
   caution     = 0.05,   # 5-10%: test with caution
   descriptive = 0.05    # < 5%: descriptive only
 )
 
-# --- Calendar time RCS specification (SAP Section 12.1) ----------------------
+# --- Calendar time RCS specification ------------------------------------------
 rcs_knots <- 3  # 3 knots at 10th, 50th, 90th percentiles
 
-# --- Pattern-mixture delta grid (SAP Section 18.1) ---------------------------
+# --- Pattern-mixture delta grid -----------------------------------------------
 delta_grid <- seq(-8, 8, by = 2)
 
-# --- Subgroup cut-points (SAP Section 22.1) ----------------------------------
+# --- Subgroup cut-points ------------------------------------------------------
 subgroup_cuts <- list(
   age      = 50,
   odi_base = 40
@@ -147,7 +146,7 @@ subgroup_cuts <- list(
   # levels = single vs multilevel (computed from data)
 )
 
-# --- Causal forest settings (SAP Section 22.2) -------------------------------
+# --- Causal forest settings ---------------------------------------------------
 cf_settings <- list(
   num.trees     = 4000L,
   min.node.size = 5L,
@@ -311,22 +310,10 @@ save_fig <- function(plot, filename, width = fig_width, height = fig_height,
 }
 
 # =============================================================================
-# CENTRALIZED COVARIATE SPECIFICATION (SAP Section 9)
+# CENTRALIZED COVARIATE SPECIFICATION
 # =============================================================================
-# All analysis scripts reference these lists rather than defining their own.
-# This ensures consistency across primary, secondary, sensitivity, and
-# exploratory analyses.
 
 # Full covariate set for outcome models (z-scored continuous, original binary/factor)
-# Note: sick_leave and disability added per SAP Section 9 (Socioeconomic domain).
-# Note: Calendar time is omitted from the primary model. Learning curve analysis
-#   (Script 18) showed no time-varying treatment effects on ODI (the primary
-#   outcome). A sensitivity analysis with treatment x calendar time interaction
-#   is included in Script 11 (Section 19.3). This is a documented deviation
-#   from the SAP, which prespecified calendar time with RCS(3 knots) and
-#   treatment interaction in the primary model.
-# Note: Surgical side is not available in the current NORspine extraction and
-#   is noted as a limitation.
 cov_string <- paste(
   "age_z + sex + bmi_z + smoking +",
   "education + employed_baseline + sick_leave + disability + analgesic_baseline +",
@@ -352,9 +339,7 @@ all_model_covs <- c(
   "prolapse_intraforaminal", "prolapse_extralateral", "stenosis_central"
 )
 
-# Restricted covariate set for sensitivity analysis (SAP Section 19.1c)
-# SAP specifies: age, sex, baseline ODI, prior surgery.
-# Calendar time omitted per documented deviation above.
+# Restricted covariate set for sensitivity analysis
 cov_string_restricted <- "age_z + sex + odi_baseline_z + prior_surgery_any"
 
 # Covariates for propensity score model (same set, un-z-scored)
@@ -389,7 +374,7 @@ standardize_covs <- function(d) {
   )
 }
 
-# Standard priors for continuous outcomes (SAP Section 12.3)
+# Standard priors for continuous outcomes
 priors_continuous <- c(
   prior(normal(0, 10), class = "b", coef = "treatmentELD"),
   prior(normal(1, 0.5), class = "b", coef = "odi_baseline_z"),
@@ -398,19 +383,14 @@ priors_continuous <- c(
   prior(normal(30, 20), class = "Intercept")
 )
 
-# Standard priors for binary outcomes (SAP Section 15.2)
-# Cauchy (student-t df=1) provides adaptive shrinkage for low-EPV settings
+# Standard priors for binary outcomes (Normal(0, 0.5) for covariate regularization)
 priors_binary_standard <- c(
   prior(normal(0, 1), class = "b", coef = "treatmentELD"),
-  prior(student_t(1, 0, 1), class = "b"),
+  prior(normal(0, 0.5), class = "b"),
   prior(normal(0, 5), class = "Intercept")
 )
 
-# Standard priors for beta regression (ODI and NRS, logit link)
-# Treatment: N(0, 1) on logit scale covers clinically plausible effects
-# Covariates: N(0, 0.5) prevents overfitting on logit scale
-# Intercept: N(0, 3) weakly informative (logit(0.17) ≈ -1.6 for ODI)
-# Phi: gamma(2, 0.1) allows precision to range from ~1 to ~50
+# Standard priors for beta regression (logit link)
 priors_beta <- c(
   prior(normal(0, 1), class = "b", coef = "treatmentELD"),
   prior(normal(0, 0.5), class = "b"),
@@ -423,11 +403,8 @@ priors_beta_skeptical_sd  <- 0.5   # N(0, 0.5) on logit
 priors_beta_reference_sd  <- 1.0   # N(0, 1) on logit
 priors_beta_diffuse_sd    <- 2.0   # N(0, 2) on logit
 
-# Standard priors for zero-inflated beta regression (ZOIB, primary model)
-# mu component: logit-link priors (same scale as beta regression)
-# zi component: logit-link priors for P(Y=0)
-# Phi: gamma(2, 0.1) for precision of beta component
-priors_zoib <- c(
+# Standard priors for zero-inflated beta regression (ZIB, primary model)
+priors_zib <- c(
   prior(normal(0, 1), class = "b", coef = "treatmentELD"),
   prior(normal(0, 0.5), class = "b"),
   prior(normal(0, 3), class = "Intercept"),
@@ -436,10 +413,10 @@ priors_zoib <- c(
   prior(normal(0, 1), class = "b", dpar = "zi")
 )
 
-# Prior sensitivity variants for ZOIB (logit scale, mu component)
-priors_zoib_skeptical_sd  <- 0.5   # N(0, 0.5) on logit
-priors_zoib_reference_sd  <- 1.0   # N(0, 1) on logit
-priors_zoib_diffuse_sd    <- 2.0   # N(0, 2) on logit
+# Prior sensitivity variants for ZIB (logit scale, mu component)
+priors_zib_skeptical_sd  <- 0.5   # N(0, 0.5) on logit
+priors_zib_reference_sd  <- 1.0   # N(0, 1) on logit
+priors_zib_diffuse_sd    <- 2.0   # N(0, 2) on logit
 
 #' Transform a bounded outcome to (0,1) for beta regression
 #' Uses Smithson & Verkuilen (2006): y' = (y * (n-1) + 0.5) / n
@@ -453,14 +430,14 @@ transform_for_beta <- function(y, upper) {
   (y_01 * (n - 1) + 0.5) / n
 }
 
-#' Transform a bounded outcome for zero-inflated beta regression (ZOIB)
+#' Transform a bounded outcome for zero-inflated beta regression (ZIB)
 #' Values at 0 are preserved (handled by the zero-inflation component).
 #' Values at the upper bound are clamped to 1 - 1e-6.
 #' Preserves NAs for mi() compatibility.
 #' @param y numeric vector (may contain NAs)
 #' @param upper upper bound of the scale (100 for ODI, 10 for NRS)
 #' @return transformed vector on [0, 1) interval
-transform_for_zoib <- function(y, upper) {
+transform_for_zib <- function(y, upper) {
   y_01 <- y / upper
   pmin(y_01, 1 - 1e-6)
 }

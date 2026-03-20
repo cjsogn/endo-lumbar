@@ -1,26 +1,26 @@
 # =============================================================================
 # ENDO-LUMBAR: 12 Falsification Tests and E-Value
-# SAP Sections 20, 21
 # =============================================================================
 
-source("/Users/cjsogn/endo_studies/lumbar/analysis/scripts/00_config.R")
+source("/Users/cjsogn/ENDO_LUMBAR/scripts/analysis/00_config.R")
 
 df_disc <- readRDS(file.path(paths$data_clean, "df_disc_imp.rds"))
 primary_results <- readRDS(file.path(paths$output, "primary_results.rds"))
 
 cat("=== Falsification Tests and E-Value ===\n")
 
+# Create treatment_num for logistic regression (ELD=1, MSD=0)
+df_disc$treatment_num <- as.integer(df_disc$treatment == "ELD")
+cat(sprintf("treatment_num: ELD=%d, MSD=%d\n",
+            sum(df_disc$treatment_num == 1), sum(df_disc$treatment_num == 0)))
+
 # =============================================================================
-# 20.2 COVARIATE FALSIFICATION TEST
+# COVARIATE FALSIFICATION TEST
 # =============================================================================
 
-cat("\n--- 20.2 Covariate Falsification Test ---\n")
-cat("After conditioning on all other covariates, treatment should not predict\n")
-cat("any single baseline covariate.\n")
+cat("\n--- Covariate Falsification Test ---\n")
 
-# All model covariates from 00_config.R (all_model_covs)
-
-# Test covariates: these should not predict treatment after conditioning on all others
+# Test covariates against treatment conditional on all others
 test_covs <- c("sex", "bmi", "education")
 
 falsification_results <- map_dfr(test_covs, function(test_var) {
@@ -85,10 +85,10 @@ write.csv(falsification_results,
           row.names = FALSE)
 
 # =============================================================================
-# 21. E-VALUE FOR UNMEASURED CONFOUNDING
+# E-VALUE FOR UNMEASURED CONFOUNDING
 # =============================================================================
 
-cat("\n--- 21. E-Value Analysis ---\n")
+cat("\n--- E-Value Analysis ---\n")
 
 ate_mean <- primary_results$ate_summary$mean
 ate_cri_lo <- primary_results$ate_summary$cri_lo
@@ -102,9 +102,7 @@ cat(sprintf("  Pooled SD of ODI 3m: %.1f\n", pooled_sd))
 smd <- ate_mean / pooled_sd
 cat(sprintf("  ATE = %.2f -> SMD = %.3f\n", ate_mean, smd))
 
-# E-value computation using the EValue package
-# For continuous outcomes: convert SMD to approximate RR
-# RR = exp(0.91 * SMD) is the square-root conversion
+# Convert SMD to approximate RR for E-value computation
 rr_est <- exp(0.91 * abs(smd))
 
 # Compute E-value directly: E = RR + sqrt(RR * (RR - 1))
@@ -127,17 +125,7 @@ evalue_bound_val <- compute_evalue(rr_bound)
 cat(sprintf("  E-value (CrI bound closest to null): %.2f\n", evalue_bound_val))
 cat(sprintf("  CrI bound used: %.2f (SMD = %.3f)\n", cri_bound, smd_bound))
 
-# Interpretation
-cat("\n  Interpretation:\n")
-if (evalue_point_val > 2.0) {
-  cat(sprintf("  E-value = %.2f > 2.0: Reassuring against unmeasured confounding.\n",
-              evalue_point_val))
-  cat("  An unmeasured confounder would need to more than double both\n")
-  cat("  P(ELD) and P(poor outcome) to explain away the observed effect.\n")
-} else {
-  cat(sprintf("  E-value = %.2f <= 2.0: Moderate vulnerability to confounding.\n",
-              evalue_point_val))
-}
+cat(sprintf("\n  E-value = %.2f\n", evalue_point_val))
 
 # E-values for binary Tier 3 outcomes
 cat("\n  E-values for Tier 3 binary outcomes:\n")

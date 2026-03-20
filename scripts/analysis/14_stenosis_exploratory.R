@@ -1,9 +1,8 @@
 # =============================================================================
 # ENDO-LUMBAR: 14 Stenosis Population Analysis (Exploratory)
-# SAP Sections 3, 12.2
 # =============================================================================
 
-source("/Users/cjsogn/endo_studies/lumbar/analysis/scripts/00_config.R")
+source("/Users/cjsogn/ENDO_LUMBAR/scripts/analysis/00_config.R")
 
 df_sten <- readRDS(file.path(paths$data_clean, "df_sten_imp.rds"))
 
@@ -15,7 +14,7 @@ cat(sprintf("Stenosis population: %d (ELD=%d, MSD=%d)\n",
             nrow(df_sten), n_eld_sten, n_msd_sten))
 
 # =============================================================================
-# FEASIBILITY CHECK (SAP Section 12.2)
+# FEASIBILITY CHECK
 # =============================================================================
 
 if (n_eld_sten < 20) {
@@ -44,8 +43,7 @@ if (n_eld_sten < 20) {
             file.path(paths$tables, "table7_stenosis_unadjusted.csv"),
             row.names = FALSE)
 
-  cat("\nNote: These are unadjusted comparisons. With only", n_eld_sten,
-      "ELD patients,\nadjusted analysis is not feasible per SAP Section 12.2.\n")
+  cat(sprintf("\nNote: Unadjusted comparisons only (%d ELD patients).\n", n_eld_sten))
 
   stenosis_results <- list(
     feasible = FALSE,

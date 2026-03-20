@@ -1,16 +1,14 @@
 # =============================================================================
 # ENDO-LUMBAR: 03 Propensity Score and Covariate Balance (Descriptive)
-# SAP Section 14
 # =============================================================================
 
-source("/Users/cjsogn/endo_studies/lumbar/analysis/scripts/00_config.R")
+source("/Users/cjsogn/ENDO_LUMBAR/scripts/analysis/00_config.R")
 
 df_disc <- readRDS(file.path(paths$data_clean, "df_disc_imp.rds"))
 var_meta <- readRDS(file.path(paths$data_clean, "var_meta.rds"))
 
 cat("=== Propensity Score and Covariate Balance (Descriptive Only) ===\n")
-cat("Note: PS analysis is descriptive per SAP Section 14.4.\n")
-cat("It does not contribute to the inferential analysis.\n\n")
+cat("Note: PS analysis is descriptive only.\n\n")
 
 # =============================================================================
 # 14.1 Propensity Score Estimation
@@ -71,7 +69,7 @@ p_overlap_hist <- ggplot(df_disc, aes(x = ps, fill = treatment)) +
 
 save_fig(p_overlap_hist, "ps_overlap_mirror.png", width = 7, height = 5)
 
-# Effective overlap (SAP: proportion with PS in [0.025, 0.975])
+# Effective overlap (proportion with PS in [0.025, 0.975])
 n_overlap <- sum(df_disc$ps >= 0.025 & df_disc$ps <= 0.975)
 pct_overlap <- 100 * n_overlap / nrow(df_disc)
 cat(sprintf("\nEffective overlap (PS in [0.025, 0.975]): %d/%d (%.1f%%)\n",
@@ -88,9 +86,9 @@ if (n_extreme_high > 0) {
   print(extreme_high %>% dplyr::select(treatment, age, sex, odi_baseline, calendar_time, ps))
 }
 
-# Flag poor overlap per SAP Section 14.4
+# Flag poor overlap
 if (pct_overlap < 90) {
-  cat("\nWARNING: >10% of sample in PS violation zone. Flagged as limitation per SAP.\n")
+  cat("\nWARNING: >10% of sample in PS violation zone.\n")
 }
 
 # =============================================================================
@@ -129,7 +127,7 @@ smd_df <- bal$Balance %>%
 cat("\nVariables with |SMD| > 0.1:\n")
 print(smd_df %>% filter(abs_smd > 0.1) %>% dplyr::select(variable, smd, abs_smd))
 
-# Love plot (SAP Section 14.3)
+# Love plot
 p_love <- ggplot(smd_df, aes(x = abs_smd, y = reorder(variable, abs_smd))) +
   geom_point(aes(color = balance_status), size = 2.5) +
   geom_vline(xintercept = 0.1, linetype = "dashed", color = "grey50") +

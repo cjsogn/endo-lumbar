@@ -1,9 +1,8 @@
 # =============================================================================
 # ENDO-LUMBAR: 06 Secondary Effectiveness Outcomes (Tier 2)
-# SAP Section 15.1, 6.3
 # =============================================================================
 
-source("/Users/cjsogn/endo_studies/lumbar/analysis/scripts/00_config.R")
+source("/Users/cjsogn/ENDO_LUMBAR/scripts/analysis/00_config.R")
 
 df_disc <- readRDS(file.path(paths$data_clean, "df_disc_imp.rds"))
 df_disc_12m <- readRDS(file.path(paths$data_clean, "df_disc_12m_eligible.rds"))
@@ -24,16 +23,8 @@ df_disc_12m <- standardize_covs(df_disc_12m)
 
 # Covariate string and priors from 00_config.R (cov_string, priors_continuous)
 
-# Common priors for binary outcomes (SAP Section 15.2, 24.1-24.2)
-# Cauchy (student-t df=1) prior provides adaptive shrinkage for low-EPV settings:
-# spike near zero shrinks noise covariates; heavy tails preserve strong confounders.
-# This approximates horseshoe behavior while allowing coefficient-specific treatment prior.
-# (brms does not allow mixing horseshoe special priors with coefficient-specific priors.)
-priors_binary <- c(
-  prior(normal(0, 1), class = "b", coef = "treatmentELD"),
-  prior(student_t(1, 0, 1), class = "b"),
-  prior(normal(0, 5), class = "Intercept")
-)
+# Binary outcome priors from 00_config.R
+priors_binary <- priors_binary_standard
 
 # =============================================================================
 # Helper: Fit and summarize a Tier 2 outcome
@@ -52,6 +43,9 @@ fit_tier2 <- function(outcome_var, outcome_label, family_type = "gaussian",
     cat(sprintf("\n--- %s ---\n", outcome_label))
   }
 
+  # Preserve full dataset for G-computation
+  d_full <- d
+
   cat(sprintf("  N: %d, Observed: %d (%.1f%%)\n",
               nrow(d), sum(!is.na(d[[outcome_var]])),
               100 * mean(!is.na(d[[outcome_var]]))))
@@ -63,26 +57,28 @@ fit_tier2 <- function(outcome_var, outcome_label, family_type = "gaussian",
     fml <- bf(as.formula(paste(outcome_var, "| mi() ~ treatment +", cov_string)))
     priors_use <- priors_continuous
     fam <- gaussian()
-  } else if (family_type == "zoib") {
-    # Transform outcome to [0,1) for ZOIB
-    zoib_var <- paste0(outcome_var, "_zoib")
-    d[[zoib_var]] <- transform_for_zoib(d[[outcome_var]], upper = beta_upper)
+  } else if (family_type == "zib") {
+    # Transform outcome to [0,1) for ZIB
+    zib_var <- paste0(outcome_var, "_zib")
+    d[[zib_var]] <- transform_for_zib(d[[outcome_var]], upper = beta_upper)
     sf <- beta_upper
-    n_zeros <- sum(d[[zoib_var]] == 0, na.rm = TRUE)
-    cat(sprintf("  ZOIB transform: [0, %d] -> [0, %.4f], zeros: %d (%.1f%%)\n",
-                beta_upper, max(d[[zoib_var]], na.rm = TRUE),
-                n_zeros, 100 * n_zeros / sum(!is.na(d[[zoib_var]]))))
+    n_zeros <- sum(d[[zib_var]] == 0, na.rm = TRUE)
+    cat(sprintf("  ZIB transform: [0, %d] -> [0, %.4f], zeros: %d (%.1f%%)\n",
+                beta_upper, max(d[[zib_var]], na.rm = TRUE),
+                n_zeros, 100 * n_zeros / sum(!is.na(d[[zib_var]]))))
     zi_formula <- if (!is.null(zi_baseline_var)) {
       paste("zi ~ treatment +", zi_baseline_var)
     } else {
       "zi ~ treatment"
     }
-    # ZOIB does not support mi() in brms; use complete cases
+    # ZIB does not support mi() in brms; fit on complete cases
+    # but preserve full dataset for G-computation over all N
+    d_full <- d
     d <- d[!is.na(d[[outcome_var]]), ]
-    cat(sprintf("  ZOIB complete cases: %d\n", nrow(d)))
-    fml <- bf(as.formula(paste(zoib_var, "~ treatment +", cov_string)),
+    cat(sprintf("  ZIB complete cases: %d (G-comp sample: %d)\n", nrow(d), nrow(d_full)))
+    fml <- bf(as.formula(paste(zib_var, "~ treatment +", cov_string)),
               as.formula(zi_formula))
-    priors_use <- priors_zoib
+    priors_use <- priors_zib
     fam <- zero_inflated_beta()
   } else if (family_type == "beta") {
     # Transform outcome to (0,1) for beta regression
@@ -96,13 +92,17 @@ fit_tier2 <- function(outcome_var, outcome_label, family_type = "gaussian",
     priors_use <- priors_beta
     fam <- Beta()
   } else {
+    # Bernoulli: fit on complete cases, G-comp over full sample
+    d_full <- d
+    d <- d[!is.na(d[[outcome_var]]), ]
+    cat(sprintf("  Bernoulli complete cases: %d (G-comp sample: %d)\n", nrow(d), nrow(d_full)))
     fml <- bf(as.formula(paste(outcome_var, "~ treatment +", cov_string)))
     priors_use <- priors_binary
     fam <- bernoulli()
   }
 
   model_name <- paste0("fit_tier2_", gsub("[^a-zA-Z0-9]", "_", outcome_var))
-  if (family_type == "zoib") model_name <- paste0(model_name, "_zoib")
+  if (family_type == "zib") model_name <- paste0(model_name, "_zib")
   if (family_type == "beta") model_name <- paste0(model_name, "_beta")
 
   fit <- brm(
@@ -126,11 +126,11 @@ fit_tier2 <- function(outcome_var, outcome_label, family_type = "gaussian",
   cat(sprintf("  Convergence: %s (Rhat max=%.4f, ESS_bulk min=%.0f)\n",
               ifelse(conv$all_ok, "PASS", "ISSUE"), conv$rhat_max, conv$ess_bulk_min))
 
-  # G-computation
-  otype <- ifelse(family_type %in% c("gaussian", "beta", "zoib"), "continuous", "binary")
+  # G-computation over full sample (d_full preserved before any complete-case filtering)
+  otype <- ifelse(family_type %in% c("gaussian", "beta", "zib"), "continuous", "binary")
   ate_draws <- compute_gcomp_ate(
     fit = fit,
-    newdata = d,
+    newdata = d_full,
     treatment_var = "treatment",
     outcome_type = otype,
     lower_is_better = lower_is_better,
@@ -147,7 +147,7 @@ fit_tier2 <- function(outcome_var, outcome_label, family_type = "gaussian",
     outcome = outcome_var,
     label = outcome_label,
     timepoint = timepoint,
-    n_sample = nrow(d),
+    n_sample = nrow(d_full),
     family = family_type,
     fit = fit,
     ate_draws = ate_draws,
@@ -163,40 +163,38 @@ fit_tier2 <- function(outcome_var, outcome_label, family_type = "gaussian",
 tier2_results <- list()
 
 # --- Continuous outcomes ---
-# ZOIB regression for bounded outcomes (ODI 0-100, NRS 0-10) with zero-inflation
-# Gaussian retained for EQ-5D (can have negative values with Norwegian value set)
 
 # ODI 12 months (uses 12m-eligible subset)
 tier2_results$odi_12m <- fit_tier2(
-  "odi_12m", "ODI 12 months", "zoib",
+  "odi_12m", "ODI 12 months", "zib",
   ni_margin = ni_margins$odi, lower_is_better = TRUE, timepoint = "12m",
   beta_upper = 100, zi_baseline_var = "odi_baseline_z"
 )
 
 # NRS back pain 3 months
 tier2_results$nrs_back_3m <- fit_tier2(
-  "nrs_back_3m", "NRS back pain 3 months", "zoib",
+  "nrs_back_3m", "NRS back pain 3 months", "zib",
   ni_margin = ni_margins$nrs_pain, lower_is_better = TRUE, timepoint = "3m",
   beta_upper = 10, zi_baseline_var = "nrs_back_baseline_z"
 )
 
 # NRS back pain 12 months (uses 12m-eligible subset)
 tier2_results$nrs_back_12m <- fit_tier2(
-  "nrs_back_12m", "NRS back pain 12 months", "zoib",
+  "nrs_back_12m", "NRS back pain 12 months", "zib",
   ni_margin = ni_margins$nrs_pain, lower_is_better = TRUE, timepoint = "12m",
   beta_upper = 10, zi_baseline_var = "nrs_back_baseline_z"
 )
 
 # NRS leg pain 3 months
 tier2_results$nrs_leg_3m <- fit_tier2(
-  "nrs_leg_3m", "NRS leg pain 3 months", "zoib",
+  "nrs_leg_3m", "NRS leg pain 3 months", "zib",
   ni_margin = ni_margins$nrs_pain, lower_is_better = TRUE, timepoint = "3m",
   beta_upper = 10, zi_baseline_var = "nrs_leg_baseline_z"
 )
 
 # NRS leg pain 12 months (uses 12m-eligible subset)
 tier2_results$nrs_leg_12m <- fit_tier2(
-  "nrs_leg_12m", "NRS leg pain 12 months", "zoib",
+  "nrs_leg_12m", "NRS leg pain 12 months", "zib",
   ni_margin = ni_margins$nrs_pain, lower_is_better = TRUE, timepoint = "12m",
   beta_upper = 10, zi_baseline_var = "nrs_leg_baseline_z"
 )

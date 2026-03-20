@@ -3,7 +3,7 @@
 # Post-hoc: raw vs adjusted comparison, leave-one-out, overlap restriction
 # =============================================================================
 
-source("/Users/cjsogn/endo_studies/lumbar/analysis/scripts/00_config.R")
+source("/Users/cjsogn/ENDO_LUMBAR/scripts/analysis/00_config.R")
 
 df_disc <- readRDS(file.path(paths$data_clean, "df_disc_imp.rds"))
 primary_results <- readRDS(file.path(paths$output, "primary_results.rds"))
@@ -162,7 +162,7 @@ write.csv(loo_table,
 # =============================================================================
 
 cat("\n--- Part 3: PS Trimming Sensitivity ---\n")
-cat("  (Data already restricted to overlap period Oct 2023+ in script 01)\n")
+cat("  (Data restricted to overlap period in script 01; see eMethods 7)\n")
 
 # PS trimming
 cat("\n  PS trimming (0.025 < PS < 0.975):\n")

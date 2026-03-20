@@ -11,9 +11,7 @@ df <- readRDS(file.path(paths$data_clean, "df_all.rds"))
 cat("=== ELD Approach Comparison: Interlaminar vs Transforaminal ===\n")
 
 # --- Subset to ELD patients with Midline or Wiltse approach ------------------
-# Data uses "Midline" (interlaminar) and "Wiltse" (transforaminal) internally.
-# Keep internal labels for model fitting (cached brms models use approachWiltse),
-# then relabel for all display output.
+# Internal labels: Midline = interlaminar, Wiltse = transforaminal
 
 df_eld <- df %>%
   filter(treatment == "ELD", approach %in% c("Midline", "Wiltse")) %>%
@@ -96,8 +94,7 @@ write.csv(unadj_summary,
 # 3. ADJUSTED BAYESIAN MODELS
 # =============================================================================
 
-# With n=29 in the transforaminal group, use a restricted set of ~6 covariates
-# to avoid overfitting. Wider treatment prior: Normal(0, 15).
+# Restricted covariates for small sample; wider treatment prior N(0, 15)
 
 cat("\n--- Adjusted Bayesian models ---\n")
 
@@ -301,7 +298,7 @@ save_fig(p_approach, "eld_approach_comparison.png", width = 10, height = 5)
 cat("  Saved: eld_approach_comparison.png\n")
 
 # =============================================================================
-# 5. NOTE ON CONFOUNDING WITH LEARNING CURVE
+# 5. LEARNING CURVE CONFOUNDING CHECK
 # =============================================================================
 
 cat("\n--- Learning curve confounding check ---\n")
@@ -319,8 +316,6 @@ cat(sprintf("  Late cases (%d-%d): Interlaminar=%d, Transforaminal=%d\n",
             nrow(early) + 1, nrow(df_eld_ordered),
             sum(late$approach == "Midline"),
             sum(late$approach == "Wiltse")))
-cat("  Note: Transforaminal approach may be more concentrated in early cases,\n")
-cat("  partially confounding approach with learning curve effects.\n")
 
 # =============================================================================
 # DONE

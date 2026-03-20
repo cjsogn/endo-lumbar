@@ -1,10 +1,9 @@
 # =============================================================================
 # ENDO-LUMBAR: 02 Descriptive Statistics (Table 1)
 # Baseline characteristics by treatment group
-# SAP Section 25.1 (Table 1)
 # =============================================================================
 
-source("/Users/cjsogn/endo_studies/lumbar/analysis/scripts/00_config.R")
+source("/Users/cjsogn/ENDO_LUMBAR/scripts/analysis/00_config.R")
 
 # Load data
 df_disc <- readRDS(file.path(paths$data_clean, "df_disc.rds"))

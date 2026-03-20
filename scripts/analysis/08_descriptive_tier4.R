@@ -1,10 +1,9 @@
 # =============================================================================
 # ENDO-LUMBAR: 08 Descriptive Outcomes (Tier 4)
 # Operating time and Negative control
-# SAP Sections 6.5, 20.1
 # =============================================================================
 
-source("/Users/cjsogn/endo_studies/lumbar/analysis/scripts/00_config.R")
+source("/Users/cjsogn/ENDO_LUMBAR/scripts/analysis/00_config.R")
 
 df_disc <- readRDS(file.path(paths$data_clean, "df_disc_imp.rds"))
 df_disc_12m <- readRDS(file.path(paths$data_clean, "df_disc_12m_eligible.rds"))
@@ -16,11 +15,10 @@ cat("=== Tier 4: Descriptive Outcomes ===\n")
 df_disc <- standardize_covs(df_disc)
 
 # =============================================================================
-# 1. OPERATING TIME (SAP Section 6.5)
+# 1. OPERATING TIME
 # =============================================================================
 
 cat("\n--- Operating Time ---\n")
-cat("Note: Descriptive only. No directional hypothesis (endo may be longer).\n")
 
 # Descriptive statistics
 op_time_desc <- df_disc %>%
@@ -67,12 +65,10 @@ cat(sprintf("\nAdjusted difference (MSD - ELD): %.1f min (95%% CrI: [%.1f, %.1f]
             ate_optime_summary$mean, ate_optime_summary$cri_lo, ate_optime_summary$cri_hi))
 
 # =============================================================================
-# 2. NEGATIVE CONTROL: EQ-5D ANXIETY/DEPRESSION (SAP Section 20.1)
+# 2. NEGATIVE CONTROL: EQ-5D ANXIETY/DEPRESSION
 # =============================================================================
 
 cat("\n--- Negative Control: EQ-5D Anxiety/Depression ---\n")
-cat("Purpose: Diagnostic for residual confounding.\n")
-cat("Expectation: No treatment effect (surgical technique should not affect anxiety/depression).\n")
 
 # 3-month analysis
 cat("\n  3-month:\n")
@@ -111,8 +107,7 @@ cat(sprintf("  P(beta != 0): %.3f\n", 1 - p_nonzero_3m))
 
 # Check if 95% CrI excludes 0 (concerns about confounding)
 if (ate_neg3m_summary$cri_lo > 0 | ate_neg3m_summary$cri_hi < 0) {
-  cat("  WARNING: 95% CrI excludes 0. Raises concern about residual confounding.\n")
-  cat("  Caveat: indirect pathway possible (faster recovery -> less anxiety).\n")
+  cat("  WARNING: 95% CrI excludes 0. Potential residual confounding.\n")
 } else {
   cat("  95% CrI includes 0. No evidence of residual confounding from this test.\n")
 }

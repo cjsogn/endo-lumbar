@@ -28,8 +28,7 @@ df_eld_all <- df %>%
     pure_disc = !has_stenosis
   )
 
-# Exclude implausible operating time outlier (585 min = likely data entry error:
-# single-level, first-time disc herniation with day surgery and no complications)
+# Exclude implausible operating time outlier (>=500 min)
 n_op_outlier <- sum(df_eld_all$operating_time >= 500, na.rm = TRUE)
 df_eld_all$operating_time[df_eld_all$operating_time >= 500] <- NA
 cat(sprintf("Operating time outliers set to NA: %d (values >= 500 min)\n", n_op_outlier))
@@ -277,10 +276,10 @@ cat(sprintf("  Coefficient: %.3f min/day (SE=%.3f), p=%.4f\n",
             coef(lm_caltime_lin)[2], summary(lm_caltime_lin)$coefficients[2,2],
             summary(lm_caltime_lin)$coefficients[2,4]))
 
-# Model 2: calendar time with RCS (interaction-like flexibility)
+# Model 2: calendar time with natural cubic spline (NCS, 3 df)
 library(splines)
 lm_caltime_rcs <- lm(operating_time ~ ns(calendar_time, df = 3), data = df_eld_all)
-cat(sprintf("  RCS model R-sq: %.3f (vs linear R-sq: %.3f)\n",
+cat(sprintf("  NCS model R-sq: %.3f (vs linear R-sq: %.3f)\n",
             summary(lm_caltime_rcs)$r.squared,
             summary(lm_caltime_lin)$r.squared))
 
@@ -328,7 +327,7 @@ p3a <- ggplot(df_eld_all, aes(x = surgery_date, y = operating_time)) +
        title = sprintf("Operating Time vs Calendar Date (all cases, n=%d)", n_eld)) +
   annotate("text", x = min(df_eld_all$surgery_date) + 30,
            y = max(df_eld_all$operating_time, na.rm = TRUE) * 0.92,
-           label = sprintf("Linear: %.2f min/day, p=%.3f\nRCS (3 df): R\u00b2=%.3f",
+           label = sprintf("Linear: %.2f min/day, p=%.3f\nNCS (3 df): R\u00b2=%.3f",
                            coef(lm_caltime_lin)[2],
                            summary(lm_caltime_lin)$coefficients[2,4],
                            summary(lm_caltime_rcs)$r.squared),
@@ -352,7 +351,7 @@ lm_odi_rcs <- lm(odi_3m ~ ns(calendar_time, df = 3), data = df_eld_odi_cal)
 cat(sprintf("\nLinear calendar time model (ODI 3m):\n  Coefficient: %.3f/day (SE=%.3f), p=%.4f\n",
             coef(lm_odi_lin)[2], summary(lm_odi_lin)$coefficients[2,2],
             summary(lm_odi_lin)$coefficients[2,4]))
-cat(sprintf("  RCS model R-sq: %.3f (vs linear R-sq: %.3f)\n",
+cat(sprintf("  NCS model R-sq: %.3f (vs linear R-sq: %.3f)\n",
             summary(lm_odi_rcs)$r.squared, summary(lm_odi_lin)$r.squared))
 
 pred_grid_odi <- tibble(
@@ -396,7 +395,7 @@ p3b <- ggplot(df_eld_odi_cal, aes(x = surgery_date, y = odi_3m)) +
                        nrow(df_eld_odi_cal))) +
   annotate("text", x = min(df_eld_odi_cal$surgery_date) + 30,
            y = max(df_eld_odi_cal$odi_3m, na.rm = TRUE) * 0.92,
-           label = sprintf("Linear: %.3f/day, p=%.3f\nRCS (3 df): R\u00b2=%.3f",
+           label = sprintf("Linear: %.3f/day, p=%.3f\nNCS (3 df): R\u00b2=%.3f",
                            coef(lm_odi_lin)[2],
                            summary(lm_odi_lin)$coefficients[2,4],
                            summary(lm_odi_rcs)$r.squared),
@@ -412,7 +411,7 @@ p3a <- p3a +
            color = "#2166AC", linewidth = 1) +
   annotate("text", x = min(df_eld_all$surgery_date) + 75,
            y = max(df_eld_all$operating_time, na.rm = TRUE) * 0.82,
-           label = "RCS (3 knots)", hjust = 0, size = 2.8, color = "#2166AC") +
+           label = "NCS (3 df)", hjust = 0, size = 2.8, color = "#2166AC") +
   annotate("segment", x = min(df_eld_all$surgery_date) + 15,
            xend = min(df_eld_all$surgery_date) + 70,
            y = max(df_eld_all$operating_time, na.rm = TRUE) * 0.77,
@@ -424,8 +423,8 @@ p3a <- p3a +
 
 p3_combined <- p3a + p3b +
   plot_annotation(
-    title = "Learning Curve by Calendar Time: Linear Covariate vs Restricted Cubic Spline",
-    subtitle = sprintf("ELD cases (n = %d), calendar time modeled as linear trend and RCS with 3 df",
+    title = "Learning Curve by Calendar Time: Linear Covariate vs Natural Cubic Spline",
+    subtitle = sprintf("ELD cases (n = %d), calendar time modeled as linear trend and NCS with 3 df",
                        n_eld),
     tag_levels = "A",
     theme = theme(plot.title = element_text(face = "bold", size = 13),

@@ -4,13 +4,12 @@
 # =============================================================================
 
 cat("====================================================================\n")
-cat("  ENDO-LUMBAR: Full Analysis Pipeline (Re-run)\n")
+cat("  ENDO-LUMBAR: Full Analysis Pipeline\n")
 cat("  Endoscopic vs Microsurgical Lumbar Discectomy\n")
-cat("  SAP Version 2.0 | March 2026\n")
 cat("====================================================================\n\n")
 
 start_time <- Sys.time()
-script_dir <- "/Users/cjsogn/ENDO_LUMBAR/scripts"
+script_dir <- "/Users/cjsogn/ENDO_LUMBAR/scripts/analysis"
 
 scripts <- c(
   "01_data_preparation.R",
@@ -84,8 +83,8 @@ cat(sprintf("\n  OK: %d | FAILED: %d | SKIPPED: %d\n",
             n_ok, n_fail, length(scripts) - n_ok - n_fail))
 
 # Print key results if available
-if (file.exists(file.path("/Users/cjsogn/endo_studies/lumbar/analysis/output/", "primary_results.rds"))) {
-  primary <- readRDS(file.path("/Users/cjsogn/endo_studies/lumbar/analysis/output/", "primary_results.rds"))
+if (file.exists(file.path("/Users/cjsogn/ENDO_LUMBAR/results/", "primary_results.rds"))) {
+  primary <- readRDS(file.path("/Users/cjsogn/ENDO_LUMBAR/results/", "primary_results.rds"))
   cat(sprintf("\n  PRIMARY RESULT:\n"))
   cat(sprintf("    ATE (ODI 3m): %.2f (95%% CrI: [%.2f, %.2f])\n",
               primary$ate_summary$mean, primary$ate_summary$cri_lo,

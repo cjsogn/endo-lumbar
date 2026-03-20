@@ -1,10 +1,9 @@
 # =============================================================================
 # ENDO-LUMBAR: 01 Data Preparation
 # Load, clean, define populations, derive variables
-# SAP Sections: 3, 10, 11
 # =============================================================================
 
-source("/Users/cjsogn/endo_studies/lumbar/analysis/scripts/00_config.R")
+source("/Users/cjsogn/ENDO_LUMBAR/scripts/analysis/00_config.R")
 
 # =============================================================================
 # 1. LOAD DATA
@@ -14,7 +13,7 @@ raw <- read_sav(paths$data_raw, encoding = "latin1")
 cat(sprintf("  Raw data: %d patients, %d variables\n", nrow(raw), ncol(raw)))
 
 # =============================================================================
-# 2. DEFINE TREATMENT GROUPS (SAP Section 3)
+# 2. DEFINE TREATMENT GROUPS
 # =============================================================================
 # OpMikroV3: 1=Mikroskopi, 2=Lupebriller, 3=Endoskopi, 0=Nei, 9=Ikke utfylt
 # ELD = Endoscopic (OpMikroV3 == 3)
@@ -35,7 +34,7 @@ cat(sprintf("  After treatment group filter: %d patients (ELD=%d, MSD=%d)\n",
             nrow(df), sum(df$treatment == "ELD"), sum(df$treatment == "MSD")))
 
 # =============================================================================
-# 3. DEFINE ANALYSIS POPULATIONS (SAP Section 3)
+# 3. DEFINE ANALYSIS POPULATIONS
 # =============================================================================
 # HovedInngrepV2V3: 1=Prolaps kirurgi, 2=Midtlinje dekompresjon, 3=Laminektomi,
 #                   5=Fusjonskirurgi, etc.
@@ -73,7 +72,7 @@ cat(sprintf("  Stenosis population: %d (ELD=%d, MSD=%d)\n",
             sum(df$pop_stenosis == 1 & df$treatment == "MSD")))
 
 # =============================================================================
-# 4. BASELINE COVARIATES (SAP Section 10)
+# 4. BASELINE COVARIATES
 # =============================================================================
 
 df <- df %>%
@@ -259,7 +258,10 @@ df <- df %>%
     ),
 
     # Return to work at 3 months
-    # Working at 3m among those who were of working age (not retired)
+    # 1 = working at follow-up, NA = retired at follow-up (excluded),
+    # 0 = all other employment statuses at follow-up (sick leave, disability,
+    # unemployed, student, homemaker). Baseline employment status is included
+    # as a covariate in all models.
     rtw_3m = case_when(
       is.na(Arbstatus3mndV2V3) ~ NA_integer_,
       Arbstatus3mndV2V3 == 1 ~ 1L,      # Full/part-time work
@@ -415,7 +417,7 @@ df <- df %>%
   )
 
 # =============================================================================
-# 7. MISSING DATA ASSESSMENT (SAP Section 11)
+# 7. MISSING DATA ASSESSMENT
 # =============================================================================
 
 # Define covariate list for missing assessment
@@ -468,7 +470,7 @@ miss_out <- df %>%
 print(miss_out, n = 30)
 
 # =============================================================================
-# 8. HANDLE MISSING COVARIATES (SAP Section 11.2-11.4)
+# 8. HANDLE MISSING COVARIATES
 # =============================================================================
 
 # Identify missing rates for disc herniation population specifically
@@ -490,8 +492,7 @@ miss_disc <- df_disc %>%
   arrange(desc(pct_missing))
 print(miss_disc, n = 30)
 
-# Apply deterministic imputation for <5% missing covariates
-# (Sensitivity analysis will jointly model these instead)
+# Deterministic imputation for <5% missing covariates
 impute_median_mode <- function(x) {
   if (is.numeric(x)) {
     x[is.na(x)] <- median(x, na.rm = TRUE)
@@ -509,13 +510,13 @@ impute_median_mode <- function(x) {
 # 9. CREATE ANALYSIS DATASETS
 # =============================================================================
 
-# Disc herniation population (primary) — restricted to overlap period
+# Disc herniation population (primary) — restricted to overlap period (see eMethods 7)
 df_disc <- df %>%
   filter(pop_disc == 1) %>%
   filter(surgery_date >= as.Date("2023-10-01")) %>%
   mutate(population = "disc_herniation")
 
-# Stenosis population (exploratory) — restricted to overlap period
+# Stenosis population (exploratory) — restricted to overlap period (see eMethods 7)
 df_sten <- df %>%
   filter(pop_stenosis == 1) %>%
   filter(surgery_date >= as.Date("2023-10-01")) %>%
@@ -602,10 +603,10 @@ for (v in covs_impute_simple_sten) {
 }
 
 # =============================================================================
-# 11. FEASIBILITY CHECK (SAP Section 9)
+# 11. FEASIBILITY CHECK
 # =============================================================================
 
-cat("\n=== Feasibility Assessment (SAP Section 9) ===\n")
+cat("\n=== Feasibility Assessment ===\n")
 eld_disc_n <- sum(df_disc$treatment == "ELD")
 cat(sprintf("ELD disc herniation: %d (threshold: 50, 80%% assurance: 55)\n", eld_disc_n))
 if (eld_disc_n >= 55) {
@@ -629,12 +630,7 @@ if (eld_sten_n >= 20) {
 # =============================================================================
 # 11b. CREATE 12-MONTH ELIGIBLE DATASETS
 # =============================================================================
-# Patients eligible for 12-month follow-up are those who either:
-# (a) had surgery on or before Dec 31, 2024 (sufficient time to reach 12 months), OR
-# (b) have confirmed 12-month questionnaire completion (Ferdigstilt1b12mnd == 1),
-#     indicating the registry received their 12m response regardless of surgery date.
-# Patients operated later without confirmed completion have structurally absent
-# 12m data (not missing at random) and are excluded from 12m analyses.
+# Eligible: surgery <= 2024-12-31 or confirmed 12m questionnaire completion
 
 df_disc_12m_eligible <- df_disc_imp %>%
   filter(surgery_date <= as.Date("2024-12-31") |

@@ -1,16 +1,15 @@
 # =============================================================================
 # ENDO-LUMBAR: 07 Perioperative/Safety Outcomes (Tier 3 - Superiority)
-# SAP Sections 6.4, 7, 15.2
 # =============================================================================
 
-source("/Users/cjsogn/endo_studies/lumbar/analysis/scripts/00_config.R")
+source("/Users/cjsogn/ENDO_LUMBAR/scripts/analysis/00_config.R")
 
 df_disc <- readRDS(file.path(paths$data_clean, "df_disc_imp.rds"))
 primary_results <- readRDS(file.path(paths$output, "primary_results.rds"))
 
 cat("=== Tier 3: Perioperative and Safety Outcomes (Superiority) ===\n")
 
-# Check gating status (SAP Section 7)
+# Check gating status
 gate_open <- primary_results$gate_open
 cat(sprintf("Primary NI: %s -> Gate: %s\n",
             ifelse(gate_open, "DEMONSTRATED", "NOT DEMONSTRATED"),
@@ -20,7 +19,7 @@ cat(sprintf("Primary NI: %s -> Gate: %s\n",
 df_disc <- standardize_covs(df_disc)
 
 # =============================================================================
-# RATE-BASED GATING (SAP Section 6.4)
+# RATE-BASED GATING
 # =============================================================================
 
 cat("\n=== Rate-Based Gating Assessment ===\n")
@@ -39,7 +38,7 @@ rate_check <- function(outcome_var, label) {
   )
   cat(sprintf(" -> %s\n", gating))
 
-  # EPV check (SAP Section 24.1)
+  # EPV check
   n_params <- 25  # approximate number of model parameters
   epv <- min(n_events, n_obs - n_events) / n_params
   cat(sprintf("    EPV: %.1f", epv))
@@ -63,19 +62,10 @@ tier3_results <- list()
 # --- Day Surgery Rate ---
 cat("\n--- Day Surgery Rate ---\n")
 
-# Priors for binary outcomes (SAP Sections 15.2, 24.1-24.2)
-# Cauchy (student-t df=1) prior provides adaptive shrinkage for low-EPV settings:
-# spike near zero shrinks noise covariates; heavy tails preserve strong confounders.
-# This approximates horseshoe behavior while allowing coefficient-specific treatment prior.
-# (brms does not allow mixing horseshoe special priors with coefficient-specific priors.)
-priors_binary <- c(
-  prior(normal(0, 1), class = "b", coef = "treatmentELD"),
-  prior(student_t(1, 0, 1), class = "b"),
-  prior(normal(0, 5), class = "Intercept")
-)
+# Binary outcome priors from 00_config.R
+priors_binary <- priors_binary_standard
 
-cat(sprintf("  EPV: %.1f — using horseshoe priors for adaptive regularization\n",
-            daysurg_gate$epv))
+cat(sprintf("  EPV: %.1f\n", daysurg_gate$epv))
 
 fit_daysurg <- brm(
   bf(as.formula(paste("day_surgery ~ treatment +", cov_string))),
@@ -104,14 +94,8 @@ tier3_results$day_surgery <- list(
 # --- Length of Stay (Postoperative, Ordinal) ---
 cat("\n--- Length of Stay (Postoperative, Ordinal Cumulative Model) ---\n")
 
-# Using los_postop (surgery to discharge) rather than los_total (admission to discharge),
-# because los_total includes preoperative admission days unrelated to the surgical technique.
-# LOS is modeled as an ordinal outcome with 4 categories: 0 (day surgery), 1 (one night),
-# 2 (two nights), 3+ (extended stay). This is appropriate because the data consists of
-# discrete point masses with rare extreme outliers (up to 62 days). Continuous
-# and count models are misspecified for this distribution. The ordinal cumulative (proportional
-# odds) model estimates the adjusted odds of being in a lower LOS category for ELD vs MSD.
-# cumulative() does not support mi(), so we use complete cases (< 5% missing).
+# Ordinal categories: 0 (day surgery), 1, 2, 3+ days
+# cumulative() does not support mi(); complete cases used
 df_los <- df_disc %>% filter(!is.na(los_postop))
 
 # Create ordinal LOS variable: 0 = day surgery, 1 = one night, 2 = two nights, 3+ = extended
@@ -156,9 +140,7 @@ fit_los <- brm(
   file_refit = "on_change"
 )
 
-# Extract treatment coefficient (log-OR for proportional odds)
-# In cumulative models, negative coefficient = lower category more likely
-# Convention: we want positive = ELD superior (lower LOS), so negate
+# Extract treatment coefficient (log-OR, negated so positive = ELD in lower category)
 draws_los <- as_draws_df(fit_los)
 log_or_draws <- -draws_los$b_treatmentELD  # negate: positive = ELD in lower category
 
@@ -206,7 +188,7 @@ tier3_results$los <- list(
 cat("\n--- Peroperative Complications (Surgeon-Reported) ---\n")
 
 if (perop_gate$gating != "Descriptive only") {
-  cat(sprintf("  EPV: %.1f — using horseshoe priors for adaptive regularization\n",
+  cat(sprintf("  EPV: %.1f\n",
               perop_gate$epv))
 
   fit_perop <- brm(
@@ -245,7 +227,7 @@ if (perop_gate$gating != "Descriptive only") {
 cat("\n--- Patient-Reported Complications (3-month) ---\n")
 
 if (ptcomp_gate$gating != "Descriptive only") {
-  cat(sprintf("  EPV: %.1f — using horseshoe priors for adaptive regularization\n",
+  cat(sprintf("  EPV: %.1f\n",
               ptcomp_gate$epv))
 
   fit_ptcomp <- brm(
@@ -317,7 +299,7 @@ if (reop_gate$gating != "Descriptive only") {
 }
 
 # =============================================================================
-# COMPLICATION COMPONENTS (descriptive, SAP Section 6.4)
+# COMPLICATION COMPONENTS (descriptive)
 # =============================================================================
 
 cat("\n=== Individual Complication Categories (Descriptive) ===\n")

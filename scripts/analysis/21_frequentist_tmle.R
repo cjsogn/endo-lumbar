@@ -1,16 +1,9 @@
 # =============================================================================
 # ENDO-LUMBAR: 21 Supplementary Frequentist Analysis (TMLE)
 # Targeted Maximum Likelihood Estimation with SuperLearner
-# Cross-validation of Bayesian results with doubly-robust semiparametric estimator
 # =============================================================================
 #
-# Purpose:
-#   1. Cross-validate Bayesian ZOIB/Gaussian/Bernoulli results with TMLE
-#   2. Handle missing outcomes through MICE pooling (Rubin's rules) across
-#      m=20 imputations, providing frequentist analogue to mi() functionality
-#   3. IPCW-weighted TMLE for 12-month outcomes as sensitivity analysis
-#
-# Estimator: TMLE with SuperLearner ensemble (glm, glmnet, ranger, xgboost)
+# TMLE with SuperLearner ensemble, MICE pooling, and IPCW for 12m outcomes
 # Sign convention: positive ATE = ELD superior (matches Bayesian)
 
 # =============================================================================
@@ -22,7 +15,7 @@ cat("ENDO-LUMBAR: Supplementary Frequentist Analysis (TMLE)\n")
 cat("=============================================================================\n\n")
 
 # Source config for covariates, NI margins, paths
-source("/Users/cjsogn/ENDO_LUMBAR/scripts/00_config.R")
+source("/Users/cjsogn/ENDO_LUMBAR/scripts/analysis/00_config.R")
 
 # Load TMLE-specific packages
 suppressPackageStartupMessages({
@@ -67,12 +60,11 @@ for (d in c(out_tables, out_figures, out_results)) {
 
 cat("\nConfiguring SuperLearner library...\n")
 
-# Full ensemble for primary complete-case analysis
+# Full ensemble for primary analysis
 sl_lib <- c("SL.glm", "SL.glmnet", "SL.ranger", "SL.xgboost")
 sl_cvcontrol <- list(V = 10L)
 
-# Simpler library for MICE-pooled analysis (340 TMLE fits with full SL is infeasible)
-# glm + glmnet provides doubly-robust estimation while keeping runtime manageable
+# Simpler library for MICE-pooled analysis (runtime consideration)
 sl_lib_mice <- c("SL.glm", "SL.glmnet")
 sl_cvcontrol_mice <- list(V = 5L)
 
@@ -691,16 +683,7 @@ cat("\nSaved: table_tmle_mice_pooled.csv\n")
 
 cat("\n=== IPCW-Weighted TMLE for 12-Month Outcomes ===\n")
 
-# Model P(observed at 12m | X, A) using SuperLearner
-# Differential LTFU: ELD ~40% vs MSD ~66% observed at 12m
-
-# The 12m-eligible dataset contains patients eligible for 12m follow-up.
-# Among these, some have observed and some have missing 12m outcomes.
-# IPCW weights upweight observed patients to represent the full eligible population.
-
-# Fit observation model on the 12m-eligible dataset
-# R_i = 1 if 12m outcome observed, 0 if missing
-# Use ODI 12m as indicator since it's representative
+# IPCW model: P(observed at 12m | X, A)
 
 R_12m <- as.integer(!is.na(df_12m$odi_12m))
 A_12m <- df_12m$treatment_num
@@ -844,11 +827,14 @@ bayesian_lookup <- bayesian_t2 %>%
   select(Outcome, ATE, CrI_lo, CrI_hi, P_NI, NI_Conclusion)
 
 # Add primary result
+# Read brms primary result from table2
+brms_primary <- read.csv(file.path(out_tables, "table2_primary_results.csv"),
+                         stringsAsFactors = FALSE)
 bayesian_primary_row <- data.frame(
   Outcome = "ODI 3 months",
-  ATE = 0.2245,
-  CrI_lo = -2.9526,
-  CrI_hi = 3.3485,
+  ATE = as.numeric(brms_primary$ATE[1]),
+  CrI_lo = as.numeric(gsub("\\[|\\]", "", strsplit(brms_primary$X95..CrI[1], ",")[[1]][1])),
+  CrI_hi = as.numeric(gsub("\\[|\\]", "", strsplit(brms_primary$X95..CrI[1], ",")[[1]][2])),
   P_NI = 1.000,
   NI_Conclusion = "NI demonstrated",
   stringsAsFactors = FALSE

@@ -1,28 +1,27 @@
 # =============================================================================
 # ENDO-LUMBAR: 05 MCMC Diagnostics and Model Assessment
-# SAP Section 13
-# Primary model: ZOIB regression for ODI 3 months
+# Primary model: ZIB regression for ODI 3 months
 # =============================================================================
 
-source("/Users/cjsogn/endo_studies/lumbar/analysis/scripts/00_config.R")
+source("/Users/cjsogn/ENDO_LUMBAR/scripts/analysis/00_config.R")
 
 df_disc <- readRDS(file.path(paths$data_clean, "df_disc_imp.rds"))
 primary_results <- readRDS(file.path(paths$output, "primary_results.rds"))
 fit <- primary_results$fit
 
-# Recreate standardized variables and ZOIB-transformed outcome
+# Recreate standardized variables and ZIB-transformed outcome
 df_disc <- standardize_covs(df_disc)
-df_disc$odi_3m_zoib <- transform_for_zoib(df_disc$odi_3m, upper = 100)
+df_disc$odi_3m_zib <- transform_for_zib(df_disc$odi_3m, upper = 100)
 
-cat("=== MCMC Diagnostics for Primary Model (ZOIB Regression) ===\n")
+cat("=== MCMC Diagnostics for Primary Model (ZIB Regression) ===\n")
 
 # =============================================================================
-# 13.1 Convergence Diagnostics
+# Convergence Diagnostics
 # =============================================================================
 
-cat("\n--- 13.1 Convergence ---\n")
+cat("\n--- Convergence ---\n")
 
-# Trace plots for key parameters (phi for beta precision, zi params for zero-inflation)
+# Trace plots for key parameters
 p_trace <- mcmc_trace(fit, pars = c("b_treatmentELD", "b_odi_baseline_z", "phi",
                                       "b_Intercept", "b_zi_Intercept",
                                       "b_zi_treatmentELD"),
@@ -33,7 +32,7 @@ save_fig(p_trace, "trace_primary.png", width = 8, height = 8,
 # Rhat plot
 rhat_vals <- brms::rhat(fit)
 p_rhat <- mcmc_rhat(rhat_vals) +
-  labs(title = "Rhat Diagnostics (ZOIB Model)")
+  labs(title = "Rhat Diagnostics (ZIB Model)")
 save_fig(p_rhat, "rhat_primary.png", width = 7, height = 5,
          path = paths$diagnostics)
 
@@ -70,33 +69,33 @@ if (nrow(bad_ess) > 0) {
 }
 
 # =============================================================================
-# 13.2 Posterior Predictive Checks (PPC)
+# Posterior Predictive Checks (PPC)
 # =============================================================================
 
-cat("\n--- 13.2 Posterior Predictive Checks ---\n")
+cat("\n--- Posterior Predictive Checks ---\n")
 
-# PPC only over patients with observed outcomes (SAP Section 13.2)
+# PPC over patients with observed outcomes
 observed_idx <- which(!is.na(df_disc$odi_3m))
-y_obs_zoib <- df_disc$odi_3m_zoib[observed_idx]
+y_obs_zib <- df_disc$odi_3m_zib[observed_idx]
 y_obs_odi <- df_disc$odi_3m[observed_idx]
 
 # Posterior predictions on [0,1) scale, convert to ODI for visualization
-yrep_zoib <- posterior_predict(fit, newdata = df_disc[observed_idx, ], ndraws = 100)
+yrep_zib <- posterior_predict(fit, newdata = df_disc[observed_idx, ], ndraws = 100)
 
 # Convert predictions and observed to ODI scale for PPC display
-yrep_odi <- yrep_zoib * 100
+yrep_odi <- yrep_zib * 100
 # Clamp to valid ODI range [0, 100]
 yrep_odi <- pmin(pmax(yrep_odi, 0), 100)
 
 p_ppc_dens <- ppc_dens_overlay(y_obs_odi, yrep_odi) +
   coord_cartesian(xlim = c(0, max(y_obs_odi) + 5)) +
-  labs(title = "PPC: Density Overlay (ODI 3 months, ZOIB Model)",
+  labs(title = "PPC: Density Overlay (ODI 3 months, ZIB Model)",
        subtitle = "100 posterior predictive draws vs observed",
        x = "ODI Score")
 save_fig(p_ppc_dens, "ppc_density_odi3m.png", width = 7, height = 5,
          path = paths$diagnostics)
 
-# Test statistics on ODI scale (SAP: mean, SD, skewness, quantiles)
+# Test statistics on ODI scale
 p_ppc_stat_mean <- ppc_stat(y_obs_odi, yrep_odi, stat = "mean") +
   labs(title = "PPC: Mean")
 p_ppc_stat_sd <- ppc_stat(y_obs_odi, yrep_odi, stat = "sd") +
@@ -106,11 +105,11 @@ p_ppc_stat_median <- ppc_stat(y_obs_odi, yrep_odi, stat = "median") +
 
 p_ppc_stats <- p_ppc_stat_mean + p_ppc_stat_sd + p_ppc_stat_median +
   plot_layout(ncol = 3) +
-  plot_annotation(title = "PPC: Test Statistics (ZOIB Model)")
+  plot_annotation(title = "PPC: Test Statistics (ZIB Model)")
 save_fig(p_ppc_stats, "ppc_test_stats_odi3m.png", width = 12, height = 4,
          path = paths$diagnostics)
 
-# Compute Bayesian p-values (SAP: should be 0.05-0.95)
+# Bayesian p-values (target: 0.05-0.95)
 calc_bp <- function(stat_fn) {
   obs_stat <- stat_fn(y_obs_odi)
   rep_stats <- apply(yrep_odi, 1, stat_fn)
@@ -141,12 +140,12 @@ cat("\nBayesian p-values (target: 0.05-0.95):\n")
 print(ppc_summary)
 
 # =============================================================================
-# 13.3 LOO-CV (SAP Section 13.3)
+# LOO-CV
 # =============================================================================
 
-cat("\n--- 13.3 LOO-CV ---\n")
+cat("\n--- LOO-CV ---\n")
 
-# LOO only over observed outcomes (mi() model has NAs for missing)
+# LOO over observed outcomes
 df_obs <- df_disc[!is.na(df_disc$odi_3m), ]
 loo_primary <- tryCatch({
   loo(fit, newdata = df_obs, cores = n_cores)
@@ -191,14 +190,14 @@ if (!is.null(loo_primary)) {
 }
 
 # =============================================================================
-# 13.4 Residual Diagnostics (ZOIB model)
+# Residual Diagnostics
 # =============================================================================
 
-cat("\n--- 13.4 Residual Diagnostics ---\n")
+cat("\n--- Residual Diagnostics ---\n")
 
 # Posterior mean fitted values (on response scale [0,1)) and convert to ODI
-fitted_zoib <- fitted(fit, newdata = df_disc[observed_idx, ])[, "Estimate"]
-fitted_odi <- fitted_zoib * 100  # Convert to ODI scale
+fitted_zib <- fitted(fit, newdata = df_disc[observed_idx, ])[, "Estimate"]
+fitted_odi <- fitted_zib * 100  # Convert to ODI scale
 
 # Raw residuals on ODI scale
 residuals_raw <- y_obs_odi - fitted_odi
@@ -243,17 +242,17 @@ p_resid_age <- ggplot(resid_df, aes(x = age, y = residual)) +
        title = "Residuals vs Age")
 
 p_residuals <- (p_resid_fitted | p_qq) / (p_resid_odi | p_resid_age) +
-  plot_annotation(title = "Residual Diagnostics: Primary Model (ZOIB Regression)")
+  plot_annotation(title = "Residual Diagnostics: Primary Model (ZIB Regression)")
 save_fig(p_residuals, "residual_diagnostics_primary.png", width = 10, height = 8,
          path = paths$diagnostics)
 
 # =============================================================================
-# 13.5 Goodness-of-Fit: Pseudo R²
+# Pseudo R²
 # =============================================================================
 
-cat("\n--- 13.5 Pseudo R² ---\n")
+cat("\n--- Pseudo R² ---\n")
 
-# For ZOIB, compute pseudo R² from posterior predictions
+# For ZIB, compute pseudo R² from posterior predictions
 r2_vals <- tryCatch({
   bayes_R2(fit, newdata = df_obs)
 }, error = function(e) {
@@ -261,7 +260,7 @@ r2_vals <- tryCatch({
   cat(sprintf("Note: bayes_R2 fallback (%s)\n", e$message))
   pred <- posterior_epred(fit, newdata = df_obs)
   var_pred <- apply(pred, 1, var)
-  var_obs <- var(y_obs_zoib)
+  var_obs <- var(y_obs_zib)
   var_pred / var_obs
 })
 r2_clean <- r2_vals[!is.na(r2_vals) & !is.nan(r2_vals)]
@@ -280,10 +279,10 @@ if (length(r2_clean) > 0) {
 }
 
 # =============================================================================
-# 13.6 Influential Observations
+# Influential Observations
 # =============================================================================
 
-cat("\n--- 13.6 Influential Observations ---\n")
+cat("\n--- Influential Observations ---\n")
 
 if (n_very_high_k > 0) {
   influential_idx <- which(k_vals > 1.0)

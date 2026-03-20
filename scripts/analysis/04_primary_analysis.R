@@ -1,10 +1,9 @@
 # =============================================================================
 # ENDO-LUMBAR: 04 Primary Analysis - Bayesian G-Computation
 # ODI at 3 months, Disc Herniation Population
-# SAP Sections 12, 13
 # =============================================================================
 
-source("/Users/cjsogn/endo_studies/lumbar/analysis/scripts/00_config.R")
+source("/Users/cjsogn/ENDO_LUMBAR/scripts/analysis/00_config.R")
 
 df_disc <- readRDS(file.path(paths$data_clean, "df_disc_imp.rds"))
 var_meta <- readRDS(file.path(paths$data_clean, "var_meta.rds"))
@@ -41,61 +40,51 @@ scaling_params <- list(
 saveRDS(scaling_params, file.path(paths$data_clean, "scaling_params.rds"))
 
 # =============================================================================
-# 2. ZOIB REGRESSION (SAP Deviation: distributional model)
+# 2. ZIB REGRESSION
 # =============================================================================
 
-# ODI is bounded [0, 100] with differential zero-inflation (ELD 19.2% vs MSD
-# 7.0% at ODI=0). A comprehensive 10-model comparison (Gaussian, Beta with SV
-# transform, ZOIB variants, ordered beta, skew-normal, tobit, hurdle lognormal,
-# hurdle gamma, cumulative ordinal) identified ZOIB with zi~treatment+baseline
-# as best-fitting (10/12 PPC checks passed). The Beta+SV transform biased ATE
-# upward due to differential boundary compression. ZOIB handles exact zeros
-# through a mixture of a point mass at 0 and a beta distribution on (0,1).
-# Transform ODI from [0, 100] to [0, 1) for ZOIB.
-
-cat("\nTransforming ODI 3m for ZOIB regression...\n")
-df_disc$odi_3m_zoib <- transform_for_zoib(df_disc$odi_3m, upper = 100)
-cat(sprintf("  ODI 3m ZOIB range: [%.4f, %.4f] (observed only)\n",
-            min(df_disc$odi_3m_zoib, na.rm = TRUE),
-            max(df_disc$odi_3m_zoib, na.rm = TRUE)))
+# Transform ODI from [0, 100] to [0, 1) for zero-inflated beta regression
+cat("\nTransforming ODI 3m for ZIB regression...\n")
+df_disc$odi_3m_zib <- transform_for_zib(df_disc$odi_3m, upper = 100)
+cat(sprintf("  ODI 3m ZIB range: [%.4f, %.4f] (observed only)\n",
+            min(df_disc$odi_3m_zib, na.rm = TRUE),
+            max(df_disc$odi_3m_zib, na.rm = TRUE)))
 cat(sprintf("  Exact zeros: %d (%.1f%%)\n",
-            sum(df_disc$odi_3m_zoib == 0, na.rm = TRUE),
-            100 * mean(df_disc$odi_3m_zoib == 0, na.rm = TRUE)))
+            sum(df_disc$odi_3m_zib == 0, na.rm = TRUE),
+            100 * mean(df_disc$odi_3m_zib == 0, na.rm = TRUE)))
 
 # =============================================================================
-# 3. MODEL SPECIFICATION (SAP Section 12.1)
+# 3. MODEL SPECIFICATION
 # =============================================================================
 
-# Outcome model - ZOIB does not support | mi() in brms, so analysis uses
-# complete cases for the primary outcome. Missing data sensitivity is conducted
-# via pattern-mixture, tipping-point, and selection model analyses (Script 10).
-# All covariates from SAP Section 9 (centralized in 00_config.R)
-# Note: Covariates <5% missing were median/mode-imputed in 01_data_preparation.R
-# Note: Calendar time omitted; see 00_config.R for documented rationale
-# ZOIB: zi submodel includes treatment (differential zero rates) and baseline
-# ODI (patients with lower baseline severity more likely to achieve ODI=0).
+# ZIB complete cases (mi() not supported); missing data handled in Script 10
+# zi submodel includes treatment + baseline ODI
 
-# Filter to complete cases for ZOIB
+# Preserve full dataset for G-computation
+df_disc_full <- df_disc
+
+# Filter to complete cases for ZIB model fitting
 df_disc <- df_disc %>% filter(!is.na(odi_3m))
-cat(sprintf("Complete cases for ZOIB: %d\n", nrow(df_disc)))
+cat(sprintf("Complete cases for ZIB model fitting: %d\n", nrow(df_disc)))
+cat(sprintf("Full sample for G-computation: %d\n", nrow(df_disc_full)))
 
 model_formula <- bf(
-  as.formula(paste("odi_3m_zoib ~ treatment +", cov_string)),
+  as.formula(paste("odi_3m_zib ~ treatment +", cov_string)),
   zi ~ treatment + odi_baseline_z
 )
 
 # =============================================================================
-# 4. PRIOR SPECIFICATION (SAP Section 12.3)
+# 4. PRIOR SPECIFICATION
 # =============================================================================
 
-# ZOIB priors (logit link scale for both mu and zi) from 00_config.R
-model_priors <- priors_zoib
+# ZIB priors from 00_config.R (logit link scale)
+model_priors <- priors_zib
 
 # =============================================================================
 # 5. FIT MODEL
 # =============================================================================
 
-cat("\nFitting primary Bayesian ZOIB regression model...\n")
+cat("\nFitting primary Bayesian ZIB regression model...\n")
 cat(sprintf("MCMC: %d chains, %d iterations (%d warmup)\n",
             mcmc_settings$chains, mcmc_settings$iter, mcmc_settings$warmup))
 cat(sprintf("adapt_delta: %.2f, max_treedepth: %d\n",
@@ -115,12 +104,12 @@ fit_primary <- brm(
     adapt_delta = mcmc_settings$adapt_delta,
     max_treedepth = mcmc_settings$max_treedepth
   ),
-  file = file.path(paths$models, "fit_primary_odi3m_zoib"),
+  file = file.path(paths$models, "fit_primary_odi3m_zib"),
   file_refit = "on_change"
 )
 
 # =============================================================================
-# 6. CONVERGENCE CHECK (SAP Section 13.1)
+# 6. CONVERGENCE CHECK
 # =============================================================================
 
 cat("\n=== Convergence Diagnostics ===\n")
@@ -147,25 +136,25 @@ cat("\n=== Model Summary ===\n")
 print(summary(fit_primary))
 
 # =============================================================================
-# 7. G-COMPUTATION (SAP Section 12.4)
+# 7. G-COMPUTATION
 # =============================================================================
 
 cat("\n=== G-Computation: Average Treatment Effect ===\n")
 
-# Compute ATE using counterfactual predictions
-# For each posterior draw: predict Y(ELD) and Y(MSD) for ALL patients
-# ATE = mean(Y_MSD) - mean(Y_ELD) [positive = ELD superior, since lower ODI = better]
-# scale_factor = 100 converts ZOIB [0,1) predictions back to ODI points
-# posterior_epred for ZOIB returns E[Y] = (1 - zi) * mu, accounting for zero-inflation
+# Counterfactual predictions over full sample; scale_factor = 100 converts [0,1) to ODI
 
 ate_draws <- compute_gcomp_ate(
   fit = fit_primary,
-  newdata = df_disc,
+  newdata = df_disc_full,
   treatment_var = "treatment",
   outcome_type = "continuous",
   lower_is_better = TRUE,  # Lower ODI = better
-  scale_factor = 100       # ZOIB [0,1) -> ODI [0,100]
+  scale_factor = 100       # ZIB [0,1) -> ODI [0,100]
 )
+
+cat(sprintf("G-computation sample: N = %d (ELD = %d, MSD = %d)\n",
+            nrow(df_disc_full), sum(df_disc_full$treatment == "ELD"),
+            sum(df_disc_full$treatment == "MSD")))
 
 # Summarize ATE
 ate_summary <- summarize_ate(ate_draws$ate, ni_margin = ni_margins$odi)
@@ -178,7 +167,7 @@ cat(sprintf("P(NI): P(Delta > -%.0f) = %.4f %s\n",
 cat(sprintf("P(Superiority): P(Delta > 0) = %.4f\n", ate_summary$p_superiority))
 
 # =============================================================================
-# 8. ROPE ANALYSIS (SAP Section 16)
+# 8. ROPE ANALYSIS
 # =============================================================================
 
 # ROPE = [-7, 7] ODI points

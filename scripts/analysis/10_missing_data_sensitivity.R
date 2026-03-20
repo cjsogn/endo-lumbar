@@ -1,37 +1,29 @@
 # =============================================================================
 # ENDO-LUMBAR: 10 Missing Data Sensitivity Analyses
-# SAP Section 18
 # =============================================================================
 
-source("/Users/cjsogn/endo_studies/lumbar/analysis/scripts/00_config.R")
+source("/Users/cjsogn/ENDO_LUMBAR/scripts/analysis/00_config.R")
 
 df_disc <- readRDS(file.path(paths$data_clean, "df_disc_imp.rds"))
 primary_results <- readRDS(file.path(paths$output, "primary_results.rds"))
 
-cat("=== Missing Data Sensitivity Analyses (SAP Section 18) ===\n")
+cat("=== Missing Data Sensitivity Analyses ===\n")
 
 # Prepare data (standardize_covs and cov_string from 00_config.R)
 df_disc <- standardize_covs(df_disc)
 
-# ZOIB transformation for ODI
-df_disc$odi_3m_zoib <- transform_for_zoib(df_disc$odi_3m, upper = 100)
+# ZIB transformation for ODI
+df_disc$odi_3m_zib <- transform_for_zib(df_disc$odi_3m, upper = 100)
 
-# Note: ZOIB does not support mi() in brms. The pattern-mixture and tipping-point
-# analyses use the ZOIB primary model (complete cases) as the base, and apply
-# delta adjustments to the counterfactual predictions for the full sample.
-# The complete-case ZOIB model is used as the base for all sensitivity analyses.
+# ZIB complete-case model used as base for all sensitivity analyses
 
 # =============================================================================
-# 18.1 PATTERN-MIXTURE MODEL (delta-adjustment)
+# PATTERN-MIXTURE MODEL (delta-adjustment)
 # =============================================================================
 
-cat("\n--- 18.1 Pattern-Mixture Model ---\n")
+cat("\n--- Pattern-Mixture Model ---\n")
 cat(sprintf("Delta grid: %s ODI points\n", paste(delta_grid, collapse = ", ")))
-cat("Delta adjusts counterfactual predictions for patients with missing outcomes.\n")
-cat("Implementation: Post-hoc delta adjustment applied to the ZOIB model's\n")
-cat("posterior predictions for all patients (including LTFU). The model uses\n")
-cat("covariate information to predict outcomes for patients with missing data.\n")
-cat("Delta is applied to the factual treatment prediction for missing patients.\n")
+cat("Delta adjusts predictions for patients with missing outcomes.\n")
 
 # Get primary model and identify missing patients
 missing_idx <- which(is.na(df_disc$odi_3m))
@@ -56,7 +48,7 @@ cat("  Computing base counterfactual predictions...\n")
 pred_eld_base <- posterior_epred(fit_primary, newdata = nd_eld, allow_new_levels = TRUE)
 pred_msd_base <- posterior_epred(fit_primary, newdata = nd_msd, allow_new_levels = TRUE)
 
-# Scale predictions from [0,1) ZOIB scale to ODI points for delta shifts
+# Scale predictions from [0,1) ZIB scale to ODI points for delta shifts
 pred_eld_base <- pred_eld_base * 100
 pred_msd_base <- pred_msd_base * 100
 
@@ -116,13 +108,11 @@ p_pm <- ggplot(pm_results, aes(x = delta, y = p_ni)) +
 save_fig(p_pm, "pattern_mixture_sensitivity.png")
 
 # =============================================================================
-# 18.3 TIPPING-POINT ANALYSIS
+# TIPPING-POINT ANALYSIS
 # =============================================================================
 
-cat("\n--- 18.3 Tipping-Point Analysis ---\n")
+cat("\n--- Tipping-Point Analysis ---\n")
 cat("Finding delta* that reverses the NI conclusion.\n")
-cat("Adversarial shift: ELD-missing get +delta (worse ODI),\n")
-cat("MSD-missing get -delta (better ODI). This is the worst case for ELD.\n")
 
 # Fine-grained delta search (positive deltas only; adversarial direction)
 delta_fine <- seq(0, 25, by = 0.5)
@@ -156,11 +146,6 @@ tipping_point <- tp_results %>%
 
 if (length(tipping_point) > 0) {
   cat(sprintf("  Tipping point (delta*): %.1f ODI points\n", tipping_point))
-  cat("  Interpretation: LTFU patients would need to differ by this much\n")
-  cat("  (differentially by treatment group) to reverse the NI conclusion.\n")
-  if (tipping_point > 10) {
-    cat("  delta* > 10: NI conclusion is resilient to MNAR.\n")
-  }
 } else {
   cat("  No tipping point found in range [0, 25]. NI conclusion is very resilient.\n")
 }
@@ -180,13 +165,10 @@ p_tp <- ggplot(tp_results, aes(x = delta, y = p_ni)) +
 save_fig(p_tp, "tipping_point_odi3m.png")
 
 # =============================================================================
-# 18.4 COMPLETE-CASE ANALYSIS
+# GAUSSIAN MI() COMPARISON
 # =============================================================================
 
-cat("\n--- 18.4 Gaussian mi() Comparison (MAR with full sample) ---\n")
-cat("The primary ZOIB model uses complete cases because mi() is not supported\n")
-cat("for zero_inflated_beta in brms. To assess MAR sensitivity, we fit a Gaussian\n")
-cat("model with mi() on the full sample and compare ATEs.\n")
+cat("\n--- Gaussian mi() Comparison (MAR with full sample) ---\n")
 
 cat(sprintf("Full sample: %d, Complete cases (primary): %d\n",
             nrow(df_disc), sum(!is.na(df_disc$odi_3m))))
@@ -213,19 +195,17 @@ ate_gauss_mi_summary <- summarize_ate(ate_gauss_mi$ate, ni_margin = ni_margins$o
 cat(sprintf("  Gaussian mi() ATE: %.2f (95%% CrI: [%.2f, %.2f])\n",
             ate_gauss_mi_summary$mean, ate_gauss_mi_summary$cri_lo, ate_gauss_mi_summary$cri_hi))
 cat(sprintf("  Gaussian mi() P(NI): %.4f\n", ate_gauss_mi_summary$p_ni))
-cat(sprintf("  Primary ZOIB CC ATE: %.2f, P(NI): %.4f\n",
+cat(sprintf("  Primary ZIB CC ATE: %.2f, P(NI): %.4f\n",
             primary_results$ate_summary$mean, primary_results$ate_summary$p_ni))
 
 # Use primary results as the CC reference
 ate_cc_summary <- primary_results$ate_summary
 
 # =============================================================================
-# 18.5 COVARIATE SUB-MODEL SENSITIVITY (SAP Section 11.3-11.4)
+# COVARIATE SUB-MODEL SENSITIVITY
 # =============================================================================
 
-cat("\n--- 18.5 Covariate Sub-Model Sensitivity ---\n")
-cat("SAP specifies brms sub-models for covariates with 5-50% missing,\n")
-cat("and latent variables with informative priors for >50% missing.\n")
+cat("\n--- Covariate Sub-Model Sensitivity ---\n")
 
 # Build var_meta from the covariate missingness table
 miss_table <- read.csv(file.path(paths$tables, "covariate_missingness_disc.csv"),
@@ -246,17 +226,13 @@ cat(sprintf("  Covariates >50%% missing: %d (%s)\n",
 
 # Check which covariates need sub-models
 if (length(var_meta$covs_submodel) == 0 && length(var_meta$covs_latent) == 0) {
-  cat("\nAll covariates have <5% missingness in the disc herniation population.\n")
-  cat("No sub-models or latent variables needed. Simple median/mode imputation\n")
-  cat("is appropriate per SAP Section 11.2.\n")
-  cat("The pre-registered tiered approach (sub-models for 5-50%, latent for >50%)\n")
-  cat("was not triggered because baseline form completion was sufficiently high.\n")
+  cat("\nAll covariates <5% missing; simple imputation sufficient.\n")
 
   submodel_sensitivity <- list(
     needed = FALSE,
     covs_submodel = character(0),
     covs_latent = character(0),
-    note = "All covariates <5% missing; simple imputation per SAP 11.2"
+    note = "All covariates <5% missing; simple imputation used"
   )
 
 } else {
@@ -331,12 +307,11 @@ if (length(var_meta$covs_submodel) == 0 && length(var_meta$covs_latent) == 0) {
 }
 
 # =============================================================================
-# 18.2 SELECTION MODEL (custom Stan)
+# SELECTION MODEL (custom Stan)
 # =============================================================================
 
-cat("\n--- 18.2 Selection Model ---\n")
-cat("Joint model for outcome Y and response indicator R.\n")
-cat("Implementation: Custom Stan code via cmdstanr.\n")
+cat("\n--- Selection Model ---\n")
+cat("Joint model for outcome Y and response indicator R via custom Stan.\n")
 
 # Write Stan model for selection model
 stan_selection_model <- '
@@ -466,7 +441,7 @@ if (requireNamespace("cmdstanr", quietly = TRUE) &&
 cat("\n=== Missing Data Sensitivity Summary (Table 6) ===\n")
 
 missing_sensitivity_table <- bind_rows(
-  tibble(Analysis = "Primary (ZOIB, complete cases)",
+  tibble(Analysis = "Primary (ZIB, complete cases)",
          ATE = primary_results$ate_summary$mean,
          CrI_lo = primary_results$ate_summary$cri_lo,
          CrI_hi = primary_results$ate_summary$cri_hi,

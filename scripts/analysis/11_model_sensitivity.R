@@ -1,37 +1,39 @@
 # =============================================================================
 # ENDO-LUMBAR: 11 Model Specification Sensitivity
-# SAP Section 19
 # =============================================================================
 
-source("/Users/cjsogn/endo_studies/lumbar/analysis/scripts/00_config.R")
+source("/Users/cjsogn/ENDO_LUMBAR/scripts/analysis/00_config.R")
 
 df_disc <- readRDS(file.path(paths$data_clean, "df_disc_imp.rds"))
 primary_results <- readRDS(file.path(paths$output, "primary_results.rds"))
 
-cat("=== Model Specification Sensitivity (SAP Section 19) ===\n")
+cat("=== Model Specification Sensitivity ===\n")
 
 # Prepare data (standardize_covs, cov_string, cov_string_restricted from 00_config.R)
 df_disc <- standardize_covs(df_disc)
 
-# ZOIB transformation for ODI (primary model)
-df_disc$odi_3m_zoib <- transform_for_zoib(df_disc$odi_3m, upper = 100)
+# ZIB transformation for ODI (primary model)
+df_disc$odi_3m_zib <- transform_for_zib(df_disc$odi_3m, upper = 100)
 # Beta (SV) transformation for sensitivity analysis
 df_disc$odi_3m_beta <- transform_for_beta(df_disc$odi_3m, upper = 100)
 
 cov_string_full <- cov_string  # alias for clarity in this script
 
-# Complete cases for ZOIB models (mi() not supported for zero_inflated_beta)
+# Preserve full dataset for G-computation
+df_disc_full <- df_disc
+
+# Complete cases for ZIB models (mi() not supported for zero_inflated_beta)
 df_cc <- df_disc %>% filter(!is.na(odi_3m))
-df_cc$odi_3m_zoib <- transform_for_zoib(df_cc$odi_3m, upper = 100)
-cat(sprintf("Complete cases for ZOIB sensitivity: %d\n", nrow(df_cc)))
+df_cc$odi_3m_zib <- transform_for_zib(df_cc$odi_3m, upper = 100)
+cat(sprintf("Complete cases for ZIB sensitivity: %d\n", nrow(df_cc)))
 
 sensitivity_results <- list()
 
 # =============================================================================
-# 19.1a Gaussian Likelihood (alternative distributional assumption)
+# Gaussian Likelihood
 # =============================================================================
 
-cat("\n--- 19.1a Gaussian Likelihood (original SAP specification) ---\n")
+cat("\n--- Gaussian Likelihood ---\n")
 
 fit_gaussian <- brm(
   bf(as.formula(paste("odi_3m | mi() ~ treatment +", cov_string_full))),
@@ -62,10 +64,10 @@ sensitivity_results$gaussian <- list(
 )
 
 # =============================================================================
-# 19.1a2 Beta Regression with SV Transform (sensitivity)
+# Beta Regression with SV Transform
 # =============================================================================
 
-cat("\n--- 19.1a2 Beta Regression with SV Transform ---\n")
+cat("\n--- Beta Regression with SV Transform ---\n")
 
 fit_beta_sv <- brm(
   bf(as.formula(paste("odi_3m_beta | mi() ~ treatment +", cov_string_full))),
@@ -96,10 +98,10 @@ sensitivity_results$beta_sv <- list(
 )
 
 # =============================================================================
-# 19.1b Student-t Likelihood (estimated nu, Gamma(2,0.1) prior)
+# Student-t Likelihood (estimated nu)
 # =============================================================================
 
-cat("\n--- 19.1b Student-t Likelihood (estimated nu, Gamma(2,0.1) prior) ---\n")
+cat("\n--- Student-t Likelihood ---\n")
 
 fit_studentt <- brm(
   bf(as.formula(paste("odi_3m | mi() ~ treatment +", cov_string_full))),
@@ -136,18 +138,13 @@ sensitivity_results$student_t <- list(
 )
 
 # =============================================================================
-# 19.1c Horseshoe Priors (ZOIB model)
-# SAP Section 19.1: "Horseshoe priors on covariates"
-# Note: brms does not allow coef-specific overrides with horseshoe class prior.
-# Horseshoe is applied to all mu coefficients; this provides a conservative
-# sensitivity test since the treatment effect is also regularized toward zero.
-# zi component retains standard priors.
+# Horseshoe prior sensitivity (ZIB model, all mu coefficients)
 # =============================================================================
 
-cat("\n--- 19.1c Horseshoe Priors (ZOIB, all mu coefficients) ---\n")
+cat("\n--- Horseshoe Priors ---\n")
 
 fit_hs <- brm(
-  bf(as.formula(paste("odi_3m_zoib ~ treatment +", cov_string_full)),
+  bf(as.formula(paste("odi_3m_zib ~ treatment +", cov_string_full)),
      zi ~ treatment + odi_baseline_z),
   data = df_cc,
   family = zero_inflated_beta(),
@@ -164,11 +161,11 @@ fit_hs <- brm(
   cores = min(mcmc_settings$chains, n_cores),
   seed = mcmc_settings$seed,
   control = list(adapt_delta = 0.99, max_treedepth = 14),
-  file = file.path(paths$models, "fit_sensitivity_horseshoe_zoib"),
+  file = file.path(paths$models, "fit_sensitivity_horseshoe_zib"),
   file_refit = "on_change"
 )
 
-ate_hs <- compute_gcomp_ate(fit_hs, df_cc, "treatment", "continuous",
+ate_hs <- compute_gcomp_ate(fit_hs, df_disc_full, "treatment", "continuous",
                              lower_is_better = TRUE, scale_factor = 100)
 ate_hs_summary <- summarize_ate(ate_hs$ate, ni_margin = ni_margins$odi)
 cat(sprintf("  ATE: %.2f (95%% CrI: [%.2f, %.2f]), P(NI): %.4f\n",
@@ -181,30 +178,31 @@ sensitivity_results$horseshoe <- list(
 )
 
 # =============================================================================
-# 19.1d Restricted Covariate Set (ZOIB model)
+# Restricted Covariate Set (ZIB model)
 # =============================================================================
 
-cat("\n--- 19.1d Restricted Covariate Set (ZOIB) ---\n")
+cat("\n--- Restricted Covariate Set ---\n")
 cat("  Covariates: age, sex, baseline ODI, prior surgery\n")
 # cov_string_restricted defined in 00_config.R
 
 fit_restricted <- brm(
-  bf(as.formula(paste("odi_3m_zoib ~ treatment +", cov_string_restricted)),
+  bf(as.formula(paste("odi_3m_zib ~ treatment +", cov_string_restricted)),
      zi ~ treatment + odi_baseline_z),
   data = df_cc,
   family = zero_inflated_beta(),
-  prior = priors_zoib,
+  prior = priors_zib,
   chains = mcmc_settings$chains,
   iter = mcmc_settings$iter,
   warmup = mcmc_settings$warmup,
   cores = min(mcmc_settings$chains, n_cores),
   seed = mcmc_settings$seed,
   control = list(adapt_delta = mcmc_settings$adapt_delta),
-  file = file.path(paths$models, "fit_sensitivity_restricted_zoib"),
+  file = file.path(paths$models, "fit_sensitivity_restricted_zib"),
   file_refit = "on_change"
 )
 
-ate_restr <- compute_gcomp_ate(fit_restricted, df_cc, "treatment", "continuous",
+
+ate_restr <- compute_gcomp_ate(fit_restricted, df_disc_full, "treatment", "continuous",
                                 lower_is_better = TRUE, scale_factor = 100)
 ate_restr_summary <- summarize_ate(ate_restr$ate, ni_margin = ni_margins$odi)
 cat(sprintf("  ATE: %.2f (95%% CrI: [%.2f, %.2f]), P(NI): %.4f\n",
@@ -217,35 +215,41 @@ sensitivity_results$restricted <- list(
 )
 
 # =============================================================================
-# 19.2 Indication-Specific: Pure Disc Herniation
+# Pure Disc Herniation (no stenosis)
 # =============================================================================
 
-cat("\n--- 19.2 Pure Disc Herniation (no stenosis) ---\n")
+cat("\n--- Pure Disc Herniation (no stenosis) ---\n")
 
+# Full pure disc subset for G-computation (all patients with covariate data)
+df_pure_disc_full <- df_disc_full %>%
+  filter(stenosis_central == 0 & stenosis_lateral == 0 & stenosis_foraminal == 0)
+
+# Complete-case pure disc subset for model fitting
 df_pure_disc <- df_cc %>%
   filter(stenosis_central == 0 & stenosis_lateral == 0 & stenosis_foraminal == 0)
-cat(sprintf("  Pure disc herniation: %d (ELD=%d, MSD=%d)\n",
-            nrow(df_pure_disc),
+cat(sprintf("  Pure disc herniation: %d complete / %d total (ELD=%d, MSD=%d)\n",
+            nrow(df_pure_disc), nrow(df_pure_disc_full),
             sum(df_pure_disc$treatment == "ELD"),
             sum(df_pure_disc$treatment == "MSD")))
 
 fit_pure <- brm(
-  bf(as.formula(paste("odi_3m_zoib ~ treatment +", cov_string_full)),
+  bf(as.formula(paste("odi_3m_zib ~ treatment +", cov_string_full)),
      zi ~ treatment + odi_baseline_z),
   data = df_pure_disc,
   family = zero_inflated_beta(),
-  prior = priors_zoib,
+  prior = priors_zib,
   chains = mcmc_settings$chains,
   iter = mcmc_settings$iter,
   warmup = mcmc_settings$warmup,
   cores = min(mcmc_settings$chains, n_cores),
   seed = mcmc_settings$seed,
   control = list(adapt_delta = mcmc_settings$adapt_delta),
-  file = file.path(paths$models, "fit_sensitivity_pure_disc_zoib"),
+  file = file.path(paths$models, "fit_sensitivity_pure_disc_zib"),
   file_refit = "on_change"
 )
 
-ate_pure <- compute_gcomp_ate(fit_pure, df_pure_disc, "treatment", "continuous",
+
+ate_pure <- compute_gcomp_ate(fit_pure, df_pure_disc_full, "treatment", "continuous",
                                lower_is_better = TRUE, scale_factor = 100)
 ate_pure_summary <- summarize_ate(ate_pure$ate, ni_margin = ni_margins$odi)
 cat(sprintf("  ATE: %.2f (95%% CrI: [%.2f, %.2f]), P(NI): %.4f\n",
@@ -258,18 +262,21 @@ sensitivity_results$pure_disc <- list(
 )
 
 # =============================================================================
-# 19.3 Treatment x Calendar Time Interaction
+# Treatment x Calendar Time Interaction
 # =============================================================================
 
-cat("\n--- 19.3 Treatment x Calendar Time Interaction ---\n")
+cat("\n--- Treatment x Calendar Time Interaction ---\n")
 
+# Add calendar_time_z to both df_cc (for fitting) and df_disc_full (for G-computation)
 df_cc <- df_cc %>%
+  mutate(calendar_time_z = scale(calendar_time)[,1])
+df_disc_full <- df_disc_full %>%
   mutate(calendar_time_z = scale(calendar_time)[,1])
 
 cov_interaction <- paste(cov_string_full, "+ calendar_time_z + treatment:calendar_time_z")
 
 fit_caltime <- brm(
-  bf(as.formula(paste("odi_3m_zoib ~ treatment +", cov_interaction)),
+  bf(as.formula(paste("odi_3m_zib ~ treatment +", cov_interaction)),
      zi ~ treatment + odi_baseline_z),
   data = df_cc,
   family = zero_inflated_beta(),
@@ -287,7 +294,7 @@ fit_caltime <- brm(
   cores = min(mcmc_settings$chains, n_cores),
   seed = mcmc_settings$seed,
   control = list(adapt_delta = mcmc_settings$adapt_delta),
-  file = file.path(paths$models, "fit_sensitivity_caltime_zoib"),
+  file = file.path(paths$models, "fit_sensitivity_caltime_zib"),
   file_refit = "on_change"
 )
 
@@ -305,7 +312,8 @@ cat(sprintf("  %s\n",
                    "95% CrI includes zero: no evidence of time-varying treatment effect",
                    "95% CrI excludes zero: evidence of time-varying treatment effect")))
 
-ate_caltime <- compute_gcomp_ate(fit_caltime, df_cc, "treatment", "continuous",
+
+ate_caltime <- compute_gcomp_ate(fit_caltime, df_disc_full, "treatment", "continuous",
                                   lower_is_better = TRUE, scale_factor = 100)
 ate_caltime_summary <- summarize_ate(ate_caltime$ate, ni_margin = ni_margins$odi)
 cat(sprintf("  ATE (marginal): %.2f (95%% CrI: [%.2f, %.2f]), P(NI): %.4f\n",
@@ -325,7 +333,7 @@ sensitivity_results$caltime_interaction <- list(
 
 cat("\n=== Model Sensitivity Summary ===\n")
 sens_table <- tibble(
-  Analysis = c("Primary (ZOIB regression)",
+  Analysis = c("Primary (ZIB regression)",
                map_chr(sensitivity_results, ~.x$label)),
   ATE = c(primary_results$ate_summary$mean,
           map_dbl(sensitivity_results, ~.x$ate_summary$mean)),

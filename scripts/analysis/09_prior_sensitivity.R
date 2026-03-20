@@ -1,43 +1,45 @@
 # =============================================================================
 # ENDO-LUMBAR: 09 Prior Sensitivity Analysis
-# SAP Section 17
 # =============================================================================
 
-source("/Users/cjsogn/endo_studies/lumbar/analysis/scripts/00_config.R")
+source("/Users/cjsogn/ENDO_LUMBAR/scripts/analysis/00_config.R")
 
 df_disc <- readRDS(file.path(paths$data_clean, "df_disc_imp.rds"))
 primary_results <- readRDS(file.path(paths$output, "primary_results.rds"))
 
-cat("=== Prior Sensitivity Analysis (SAP Section 17) ===\n")
+cat("=== Prior Sensitivity Analysis ===\n")
 
 # Prepare data (standardize_covs and cov_string from 00_config.R)
 df_disc <- standardize_covs(df_disc)
 
-# ZOIB regression: transform ODI to [0,1)
-df_disc$odi_3m_zoib <- transform_for_zoib(df_disc$odi_3m, upper = 100)
+# ZIB regression: transform ODI to [0,1)
+df_disc$odi_3m_zib <- transform_for_zib(df_disc$odi_3m, upper = 100)
 
-# Filter to complete cases (ZOIB does not support mi())
+# Preserve full dataset for G-computation
+df_disc_full <- df_disc
+
+# Filter to complete cases (ZIB does not support mi())
 df_disc <- df_disc %>% filter(!is.na(odi_3m))
 cat(sprintf("Complete cases for prior sensitivity: %d\n", nrow(df_disc)))
 
 model_formula <- bf(
-  as.formula(paste("odi_3m_zoib ~ treatment +", cov_string)),
+  as.formula(paste("odi_3m_zib ~ treatment +", cov_string)),
   zi ~ treatment + odi_baseline_z
 )
 
 # =============================================================================
-# 17.1 Prior Predictive Checks (before fitting data)
+# Prior Predictive Checks
 # =============================================================================
 
-cat("\n--- 17.1 Prior Predictive Checks ---\n")
+cat("\n--- Prior Predictive Checks ---\n")
 
-# Prior predictive check on logit scale (ZOIB mu component)
+# Prior predictive check on logit scale (ZIB mu component)
 prior_pred_results <- list()
 for (prior_label in c("Skeptical", "Reference", "Diffuse")) {
   prior_sd <- switch(prior_label,
-    "Skeptical" = priors_zoib_skeptical_sd,
-    "Reference" = priors_zoib_reference_sd,
-    "Diffuse"   = priors_zoib_diffuse_sd
+    "Skeptical" = priors_zib_skeptical_sd,
+    "Reference" = priors_zib_reference_sd,
+    "Diffuse"   = priors_zib_diffuse_sd
   )
 
   cat(sprintf("\n  %s prior: N(0, %.1f) on logit scale\n", prior_label, prior_sd))
@@ -46,8 +48,8 @@ for (prior_label in c("Skeptical", "Reference", "Diffuse")) {
   # At mean ODI ≈ 17/100 = 0.17, derivative of inverse-logit ≈ 0.14
   set.seed(mcmc_settings$seed)
   prior_draws_logit <- rnorm(1000, mean = 0, sd = prior_sd)
-  # Approximate ODI-scale effect via delta method at the mean
-  mean_mu <- mean(df_disc$odi_3m_zoib[df_disc$odi_3m_zoib > 0], na.rm = TRUE)
+  # Approximate ODI-scale effect via delta method
+  mean_mu <- mean(df_disc$odi_3m_zib[df_disc$odi_3m_zib > 0], na.rm = TRUE)
   deriv <- mean_mu * (1 - mean_mu)  # derivative of inv_logit at logit(mean_mu)
   prior_draws_odi <- prior_draws_logit * deriv * 100  # convert to ODI points
 
@@ -70,7 +72,7 @@ p_prior_pred <- ggplot(prior_pred_df, aes(x = ate, fill = prior, color = prior))
   labs(
     x = "Approximate Treatment Effect (ODI points)",
     y = "Prior Density",
-    title = "Prior Predictive Check: Treatment Effect Priors (ZOIB Model)",
+    title = "Prior Predictive Check: Treatment Effect Priors (ZIB Model)",
     subtitle = "Dashed lines = NI margins; effects approximated via delta method"
   ) +
   scale_fill_brewer(palette = "Set2") +
@@ -87,9 +89,9 @@ prior_results <- list()
 
 for (prior_label in c("Skeptical", "Reference", "Diffuse")) {
   prior_sd <- switch(prior_label,
-    "Skeptical" = priors_zoib_skeptical_sd,
-    "Reference" = priors_zoib_reference_sd,
-    "Diffuse"   = priors_zoib_diffuse_sd
+    "Skeptical" = priors_zib_skeptical_sd,
+    "Reference" = priors_zib_reference_sd,
+    "Diffuse"   = priors_zib_diffuse_sd
   )
 
   cat(sprintf("\n--- Fitting %s prior: N(0, %.1f) on logit ---\n", prior_label, prior_sd))
@@ -103,7 +105,7 @@ for (prior_label in c("Skeptical", "Reference", "Diffuse")) {
     prior(normal(0, 1), class = "b", dpar = "zi")
   )
 
-  model_name <- paste0("fit_prior_zoib_", tolower(prior_label))
+  model_name <- paste0("fit_prior_zib_", tolower(prior_label))
 
   fit <- brm(
     formula = model_formula,
@@ -121,12 +123,12 @@ for (prior_label in c("Skeptical", "Reference", "Diffuse")) {
     file_refit = "on_change"
   )
 
-  # G-computation (scale_factor = 100 for ZOIB -> ODI)
-  ate_draws <- compute_gcomp_ate(fit, df_disc, "treatment", "continuous",
+  # G-computation over full dataset (scale_factor = 100 for ZIB -> ODI)
+  ate_draws <- compute_gcomp_ate(fit, df_disc_full, "treatment", "continuous",
                                   lower_is_better = TRUE, scale_factor = 100)
   ate_summary <- summarize_ate(ate_draws$ate, ni_margin = ni_margins$odi)
 
-  # Prior-to-posterior update ratio (SAP Section 17.2)
+  # Prior-to-posterior update ratio
   trt_posterior_sd <- sd(posterior::as_draws_df(fit)$b_treatmentELD)
   update_ratio <- trt_posterior_sd / prior_sd
 
@@ -150,7 +152,7 @@ for (prior_label in c("Skeptical", "Reference", "Diffuse")) {
 }
 
 # =============================================================================
-# 17.3 COMPARISON TABLE (Table 5)
+# COMPARISON TABLE
 # =============================================================================
 
 cat("\n=== Prior Sensitivity Summary (Table 5) ===\n")
