@@ -3,7 +3,8 @@
 # Load, clean, define populations, derive variables
 # =============================================================================
 
-source("/Users/cjsogn/ENDO_LUMBAR/scripts/analysis/00_config.R")
+if (!requireNamespace("here", quietly = TRUE)) install.packages("here")
+source(here::here("scripts", "analysis", "00_config.R"))
 
 # =============================================================================
 # 1. LOAD DATA

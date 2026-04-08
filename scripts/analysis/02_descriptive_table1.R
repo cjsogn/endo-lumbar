@@ -3,7 +3,8 @@
 # Baseline characteristics by treatment group
 # =============================================================================
 
-source("/Users/cjsogn/ENDO_LUMBAR/scripts/analysis/00_config.R")
+if (!requireNamespace("here", quietly = TRUE)) install.packages("here")
+source(here::here("scripts", "analysis", "00_config.R"))
 
 # Load data
 df_disc <- readRDS(file.path(paths$data_clean, "df_disc.rds"))

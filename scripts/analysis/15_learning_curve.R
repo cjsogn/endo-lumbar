@@ -1,5 +1,5 @@
 # =============================================================================
-# ENDO-LUMBAR: 18 Learning Curve Analysis (ELD Only)
+# ENDO-LUMBAR: 15 Learning Curve Analysis (ELD Only)
 # Operating time and clinical outcomes by cumulative case experience
 #
 # Figures produced:
@@ -8,7 +8,8 @@
 #   3. learning_curve_calendar.png    - Calendar time: covariate + interaction
 # =============================================================================
 
-source("/Users/cjsogn/ENDO_LUMBAR_COMPLETE_CASE/scripts/00_config_cc.R")
+if (!requireNamespace("here", quietly = TRUE)) install.packages("here")
+source(here::here("scripts", "analysis", "00_config.R"))
 
 df <- readRDS(file.path(paths$data_clean, "df_all.rds"))
 

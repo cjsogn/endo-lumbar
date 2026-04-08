@@ -1,5 +1,5 @@
 # =============================================================================
-# ENDO-LUMBAR: 21 Supplementary Frequentist Analysis (TMLE)
+# ENDO-LUMBAR: 16 Supplementary Frequentist Analysis (TMLE)
 # Targeted Maximum Likelihood Estimation with SuperLearner
 # =============================================================================
 #
@@ -15,7 +15,8 @@ cat("ENDO-LUMBAR: Supplementary Frequentist Analysis (TMLE)\n")
 cat("=============================================================================\n\n")
 
 # Source config for covariates, NI margins, paths
-source("/Users/cjsogn/ENDO_LUMBAR/scripts/analysis/00_config.R")
+if (!requireNamespace("here", quietly = TRUE)) install.packages("here")
+source(here::here("scripts", "analysis", "00_config.R"))
 
 # Load TMLE-specific packages
 suppressPackageStartupMessages({
@@ -47,9 +48,9 @@ bayesian_primary <- read.csv(file.path(paths$tables, "table2_primary_results.csv
 bayesian_t2      <- read.csv(file.path(paths$tables, "table3_tier2_effectiveness.csv"))
 
 # Output paths
-out_tables  <- "/Users/cjsogn/ENDO_LUMBAR/tables/"
-out_figures <- "/Users/cjsogn/ENDO_LUMBAR/figures/"
-out_results <- "/Users/cjsogn/ENDO_LUMBAR/results/"
+out_tables  <- paths$tables
+out_figures <- paths$figures
+out_results <- paths$results
 for (d in c(out_tables, out_figures, out_results)) {
   if (!dir.exists(d)) dir.create(d, recursive = TRUE)
 }

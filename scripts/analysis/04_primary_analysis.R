@@ -3,7 +3,8 @@
 # ODI at 3 months, Disc Herniation Population
 # =============================================================================
 
-source("/Users/cjsogn/ENDO_LUMBAR/scripts/analysis/00_config.R")
+if (!requireNamespace("here", quietly = TRUE)) install.packages("here")
+source(here::here("scripts", "analysis", "00_config.R"))
 
 df_disc <- readRDS(file.path(paths$data_clean, "df_disc_imp.rds"))
 var_meta <- readRDS(file.path(paths$data_clean, "var_meta.rds"))
@@ -251,6 +252,24 @@ primary_results <- list(
 )
 
 saveRDS(primary_results, file.path(paths$output, "primary_results.rds"))
+
+# Also write a one-row summary CSV for the manuscript (Table 2)
+if (!dir.exists(paths$tables)) dir.create(paths$tables, recursive = TRUE)
+table2 <- tibble::tibble(
+  Outcome          = "ODI 3 months",
+  Population       = "Disc herniation",
+  N_ELD            = sum(df_disc_full$treatment == "ELD"),
+  N_MSD            = sum(df_disc_full$treatment == "MSD"),
+  ATE              = sprintf("%.4f", ate_summary$mean),
+  `95% CrI`        = sprintf("[%.2f, %.2f]", ate_summary$cri_lo, ate_summary$cri_hi),
+  `P(NI)`          = sprintf("%.3f", ate_summary$p_ni),
+  `P(Superiority)` = sprintf("%.2f", ate_summary$p_superiority),
+  NI_Margin        = sprintf("%d ODI", ni_margins$odi),
+  Conclusion       = ifelse(ate_summary$ni_conclusion, "Non-inferior",
+                            "Not demonstrated")
+)
+write.csv(table2, file.path(paths$tables, "table2_primary_results.csv"),
+          row.names = FALSE)
 
 cat("\n=== Primary Analysis Summary ===\n")
 cat(sprintf("ATE: %.2f ODI points (95%% CrI: [%.2f, %.2f])\n",

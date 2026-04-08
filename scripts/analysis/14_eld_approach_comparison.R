@@ -1,10 +1,11 @@
 # =============================================================================
-# ENDO-LUMBAR: 17 ELD Approach Comparison (Transforaminal vs Interlaminar)
+# ENDO-LUMBAR: 14 ELD Approach Comparison (Transforaminal vs Interlaminar)
 # Exploratory analysis comparing interlaminar vs transforaminal endoscopic
 # approaches within ELD patients
 # =============================================================================
 
-source("/Users/cjsogn/ENDO_LUMBAR_COMPLETE_CASE/scripts/00_config_cc.R")
+if (!requireNamespace("here", quietly = TRUE)) install.packages("here")
+source(here::here("scripts", "analysis", "00_config.R"))
 
 df <- readRDS(file.path(paths$data_clean, "df_all.rds"))
 

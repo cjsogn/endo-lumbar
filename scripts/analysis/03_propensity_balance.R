@@ -2,7 +2,8 @@
 # ENDO-LUMBAR: 03 Propensity Score and Covariate Balance (Descriptive)
 # =============================================================================
 
-source("/Users/cjsogn/ENDO_LUMBAR/scripts/analysis/00_config.R")
+if (!requireNamespace("here", quietly = TRUE)) install.packages("here")
+source(here::here("scripts", "analysis", "00_config.R"))
 
 df_disc <- readRDS(file.path(paths$data_clean, "df_disc_imp.rds"))
 var_meta <- readRDS(file.path(paths$data_clean, "var_meta.rds"))

@@ -3,7 +3,8 @@
 # Primary model: ZIB regression for ODI 3 months
 # =============================================================================
 
-source("/Users/cjsogn/ENDO_LUMBAR/scripts/analysis/00_config.R")
+if (!requireNamespace("here", quietly = TRUE)) install.packages("here")
+source(here::here("scripts", "analysis", "00_config.R"))
 
 df_disc <- readRDS(file.path(paths$data_clean, "df_disc_imp.rds"))
 primary_results <- readRDS(file.path(paths$output, "primary_results.rds"))

@@ -1,7 +1,16 @@
 # =============================================================================
-# ENDO-LUMBAR: Master Run Script
-# Executes all analyses in sequence with timing and error handling
+# ENDO-LUMBAR: Master pipeline runner
+# Executes all analysis scripts in sequence with timing and error reporting.
+#
+# Usage:
+#   Rscript scripts/analysis/run_all.R
+#
+# Paths are resolved from the repository root via the `here` package, so the
+# pipeline works from any clone of the repository.
 # =============================================================================
+
+if (!requireNamespace("here", quietly = TRUE)) install.packages("here")
+library(here)
 
 cat("====================================================================\n")
 cat("  ENDO-LUMBAR: Full Analysis Pipeline\n")
@@ -9,7 +18,7 @@ cat("  Endoscopic vs Microsurgical Lumbar Discectomy\n")
 cat("====================================================================\n\n")
 
 start_time <- Sys.time()
-script_dir <- "/Users/cjsogn/ENDO_LUMBAR/scripts/analysis"
+script_dir <- here("scripts", "analysis")
 
 scripts <- c(
   "01_data_preparation.R",
@@ -25,13 +34,9 @@ scripts <- c(
   "11_model_sensitivity.R",
   "12_falsification_evalue.R",
   "13_subgroups_causal_forest.R",
-  "14_stenosis_exploratory.R",
-  "15_tables_figures.R",
-  "16_covariate_influence.R",
-  "17_eld_approach_comparison.R",
-  "18_learning_curve.R",
-  "19_odi_spider_plot.R",
-  "20_publication_figures.R"
+  "14_eld_approach_comparison.R",
+  "15_learning_curve.R",
+  "16_frequentist_tmle.R"
 )
 
 results <- list()
@@ -69,7 +74,7 @@ total <- as.numeric(difftime(Sys.time(), start_time, units = "mins"))
 
 cat("\n====================================================================\n")
 cat("  PIPELINE SUMMARY\n")
-cat(sprintf("  Total time: %.1f min (%.1f hours)\n", total, total/60))
+cat(sprintf("  Total time: %.1f min (%.1f hours)\n", total, total / 60))
 cat("====================================================================\n")
 
 for (s in names(results)) {
@@ -77,19 +82,22 @@ for (s in names(results)) {
   cat(sprintf("  %-45s %s (%.1f min)\n", s, r$status, r$time))
 }
 
-n_ok <- sum(sapply(results, function(r) r$status == "OK"))
+n_ok   <- sum(sapply(results, function(r) r$status == "OK"))
 n_fail <- sum(sapply(results, function(r) grepl("^ERROR", r$status)))
 cat(sprintf("\n  OK: %d | FAILED: %d | SKIPPED: %d\n",
             n_ok, n_fail, length(scripts) - n_ok - n_fail))
 
-# Print key results if available
-if (file.exists(file.path("/Users/cjsogn/ENDO_LUMBAR/results/", "primary_results.rds"))) {
-  primary <- readRDS(file.path("/Users/cjsogn/ENDO_LUMBAR/results/", "primary_results.rds"))
-  cat(sprintf("\n  PRIMARY RESULT:\n"))
+# Print primary result if available
+primary_path <- here("primary_results.rds")
+if (file.exists(primary_path)) {
+  primary <- readRDS(primary_path)
+  cat("\n  PRIMARY RESULT:\n")
   cat(sprintf("    ATE (ODI 3m): %.2f (95%% CrI: [%.2f, %.2f])\n",
-              primary$ate_summary$mean, primary$ate_summary$cri_lo,
+              primary$ate_summary$mean,
+              primary$ate_summary$cri_lo,
               primary$ate_summary$cri_hi))
   cat(sprintf("    P(NI): %.4f -> %s\n",
               primary$ate_summary$p_ni,
-              ifelse(primary$ate_summary$ni_conclusion, "NON-INFERIOR", "NOT DEMONSTRATED")))
+              ifelse(primary$ate_summary$ni_conclusion,
+                     "NON-INFERIOR", "NOT DEMONSTRATED")))
 }

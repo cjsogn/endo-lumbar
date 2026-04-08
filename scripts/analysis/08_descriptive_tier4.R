@@ -3,7 +3,8 @@
 # Operating time and Negative control
 # =============================================================================
 
-source("/Users/cjsogn/ENDO_LUMBAR/scripts/analysis/00_config.R")
+if (!requireNamespace("here", quietly = TRUE)) install.packages("here")
+source(here::here("scripts", "analysis", "00_config.R"))
 
 df_disc <- readRDS(file.path(paths$data_clean, "df_disc_imp.rds"))
 df_disc_12m <- readRDS(file.path(paths$data_clean, "df_disc_12m_eligible.rds"))

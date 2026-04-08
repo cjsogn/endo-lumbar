@@ -17,16 +17,25 @@ manuscript/
 complete_case/
 supplementary_followup_eligible/
 
-# PyMC scripts and outputs (internal only)
+# PyMC scripts (alternative implementation, not used in publication)
 scripts/analysis/22_pymc_bayesian.py
 scripts/analysis/22a_export_data_for_pymc.R
 scripts/analysis/22b_refit_bernoulli.py
 scripts/analysis/22c_refit_ncp.py
 scripts/analysis/22d_refit_responder.py
 scripts/analysis/23_update_primary_outputs.py
+
+# Internal check scripts
+scripts/analysis/refit_4k.R
+
+# Manuscript generation scripts (separate from analysis)
 scripts/manuscript/
+scripts/review/
+
+# Non-publication output file types
 *.npy
 *.nc
+*.rds
 
 # R/Python artifacts
 .Rhistory

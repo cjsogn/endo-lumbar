@@ -2,74 +2,128 @@
 
 Analysis code for:
 
-**Endoscopic vs Microsurgical Discectomy for Lumbar Disc Herniation During Technique Adoption: A Bayesian Non-Inferiority Study**
+**Endoscopic vs Microsurgical Lumbar Discectomy During Technique Adoption: A Target Trial Emulation**
 
 ## Study overview
 
-Registry-based cohort study emulating a target trial, using data from the Norwegian
-Registry for Spine Surgery (NORspine). Compares endoscopic lumbar discectomy (ELD,
-n=124) with microsurgical discectomy (MSD, n=297) at Oslo University Hospital during
-the introduction of the endoscopic technique (October 2023 to December 2025).
+Registry-based cohort study emulating a target trial, using data from the
+Norwegian Registry for Spine Surgery (NORspine). The study compares
+endoscopic lumbar discectomy (ELD, n = 124) with microsurgical discectomy
+(MSD, n = 297) at Oslo University Hospital during the introduction of the
+endoscopic technique (October 2023 through December 2025).
 
-The primary outcome was the Oswestry Disability Index (ODI) at 3 months, assessed
-using Bayesian G-computation with a pre-specified non-inferiority margin of 7 ODI
-points.
+The primary outcome is the Oswestry Disability Index (ODI) at 3 months,
+assessed using Bayesian G-computation with a pre-specified non-inferiority
+margin of 7 ODI points.
 
-Pre-registered on OSF Registries: https://osf.io/82qra/
+Pre-registered on OSF Registries: <https://osf.io/82qra/>
 
-## Repository structure
+## Repository contents
+
+This repository contains only the analysis scripts. Figure and manuscript
+generation scripts are not included; they are not required to reproduce
+the numerical results reported in the publication.
 
 ```
 scripts/analysis/
-├── 00_config.R              # Shared configuration, paths, parameters, seed
-├── 01_data_preparation.R    # NORspine import, cohort assembly, covariate coding
-├── 02_descriptive_table1.R  # Baseline characteristics (Table 1)
-├── 03_propensity_balance.R  # Propensity score estimation, covariate balance
-├── 04_primary_analysis.R    # Primary outcome: brms ZIB, G-computation ATE
-├── 05_mcmc_diagnostics.R    # Convergence checks (Rhat, ESS, divergences)
-├── 06_secondary_effectiveness.R  # Tier 2 outcomes (NRS, EQ-5D, responder, RTW)
-├── 07_perioperative_superiority.R # Tier 3 outcomes (day surgery, LOS, complications)
-├── 08_descriptive_tier4.R   # Operating time, negative control outcome
-├── 09_prior_sensitivity.R   # Skeptical, reference, diffuse prior comparison
-├── 10_missing_data_sensitivity.R  # Pattern-mixture, tipping-point, selection model
-├── 11_model_sensitivity.R   # Alternative likelihoods, horseshoe, restricted covariates
-├── 12_falsification_evalue.R # E-values, falsification tests, negative control
-├── 13_subgroups_causal_forest.R   # Bayesian subgroup interactions, causal forest
-├── 15_tables_figures.R      # Summary tables from model results
-├── 17_eld_approach_comparison.R   # Interlaminar vs transforaminal
-├── 18_learning_curve.R      # Operating time and ODI vs case number
-├── 20_publication_figures.R # Main and supplementary figures
-├── 21_frequentist_tmle.R    # TMLE with SuperLearner cross-validation
-└── run_all.R                # Master pipeline runner
+├── 00_config.R                    Shared configuration, paths, parameters, priors
+├── 01_data_preparation.R          NORspine import, cohort assembly, covariate coding
+├── 02_descriptive_table1.R        Baseline characteristics (Table 1)
+├── 03_propensity_balance.R        Propensity score estimation, covariate balance
+├── 04_primary_analysis.R          Primary outcome: brms ZIB, G-computation ATE
+├── 05_mcmc_diagnostics.R          Convergence checks (Rhat, ESS, divergences)
+├── 06_secondary_effectiveness.R   Tier 2 outcomes (ODI 12m, NRS, EQ-5D, RTW, ...)
+├── 07_perioperative_superiority.R Tier 3 outcomes (day surgery, LOS, complications)
+├── 08_descriptive_tier4.R         Operating time, negative control outcome
+├── 09_prior_sensitivity.R         Skeptical, reference, diffuse prior comparison
+├── 10_missing_data_sensitivity.R  Pattern-mixture, tipping-point, Gaussian mi()
+├── 11_model_sensitivity.R         Alternative likelihoods, horseshoe, restricted covariates
+├── 12_falsification_evalue.R      E-values, falsification tests, negative control
+├── 13_subgroups_causal_forest.R   Bayesian subgroup interactions, causal forest
+├── 14_eld_approach_comparison.R   Interlaminar vs transforaminal
+├── 15_learning_curve.R            Operating time and ODI vs cumulative case number
+├── 16_frequentist_tmle.R          TMLE with SuperLearner cross-validation
+└── run_all.R                      Master pipeline runner
 ```
 
 ## Analysis pipeline
 
-The pipeline runs sequentially from scripts 00 through 25:
+The pipeline runs sequentially from `00_config.R` through `16_frequentist_tmle.R`.
 
-| Scripts | Stage | Description |
-|---------|-------|-------------|
-| 00 | Configuration | Paths, parameters, NI margins, seed |
-| 01 | Data preparation | NORspine import, cohort assembly, covariate coding |
-| 02-03 | Descriptive | Table 1, propensity score balance |
-| 04-08 | Primary analysis | brms Bayesian models: primary, secondary, perioperative, descriptive |
-| 09-11 | Sensitivity | Prior, missing data, and model specification sensitivity |
-| 12 | Causal diagnostics | E-value, falsification tests, negative control |
-| 13 | Heterogeneity | Subgroup interactions, causal forests |
-| 15-20 | Outputs | Tables, figures, publication formatting |
-| 21 | Cross-validation | Frequentist TMLE with SuperLearner |
+| Scripts | Stage            | Description                                                           |
+|---------|------------------|-----------------------------------------------------------------------|
+| 00      | Configuration    | Paths, parameters, NI margins, priors, seed                           |
+| 01      | Data preparation | NORspine import, cohort assembly, covariate coding                    |
+| 02-03   | Descriptive      | Table 1, propensity score balance                                     |
+| 04      | Primary analysis | Bayesian ZIB regression and G-computation for ODI at 3 months         |
+| 05      | Diagnostics      | MCMC convergence (Rhat, ESS, divergent transitions)                   |
+| 06-07   | Secondary        | Effectiveness and perioperative outcomes (Tier 2 and Tier 3)          |
+| 08      | Descriptive      | Operating time and negative control (Tier 4)                          |
+| 09-11   | Sensitivity      | Prior, missing data, and model specification sensitivity              |
+| 12      | Causal diagnostics | E-value, falsification tests, negative control outcome              |
+| 13      | Heterogeneity    | Subgroup interactions and causal forest                               |
+| 14-15   | Exploratory      | Endoscopic approach comparison, learning curve                        |
+| 16      | Cross-validation | Frequentist TMLE with SuperLearner ensemble                           |
 
-## Software
+## Software requirements
 
-- **R 4.5**: brms (cmdstanr backend), grf, projpred, EValue, tmle3, sl3, ggplot2
+- **R** 4.5 or later
+- **R packages**: `brms`, `cmdstanr`, `rms`, `loo`, `bayesplot`, `posterior`,
+  `grf`, `projpred`, `EValue`, `tableone`, `cobalt`, `tidyverse`, `haven`,
+  `here`, `scales`, `gt`, `gtsummary`, `patchwork`
+- **Stan**: Install `cmdstanr` and run `cmdstanr::install_cmdstan()` for the
+  recommended backend.
+
+## Running the pipeline
+
+From the repository root:
+
+```bash
+Rscript scripts/analysis/run_all.R
+```
+
+All paths are resolved from the repository root via the `here` package, so
+the pipeline works from any clone. The only file the pipeline cannot locate
+automatically is the raw NORspine SPSS export (see below).
+
+### Raw data
+
+Individual patient data from NORspine cannot be shared publicly. To run
+the full pipeline, request access through the NORspine registry and set
+the path to the SPSS export before running:
+
+```bash
+export ENDO_LUMBAR_RAW_DATA="/path/to/norspine_export.sav"
+Rscript scripts/analysis/run_all.R
+```
+
+Alternatively, edit `paths$data_raw` directly in `scripts/analysis/00_config.R`.
+
+## Computational notes
+
+- Default MCMC settings: 4 chains, 2000 iterations per chain (1000 warmup),
+  seed 20260204. A sensitivity check with 4000 iterations per chain
+  produced ATEs within 0.01 of the primary results for all outcomes and
+  did not change any non-inferiority conclusion.
+- Full pipeline run time on a 14-core workstation: approximately 45-60 minutes.
 
 ## Data availability
 
-Individual patient data can be requested through the NORspine registry application
-process. All analysis scripts are provided in this repository for transparency and
-reproducibility.
+Individual patient data can be requested through the NORspine registry
+application process:
+<https://www.kvalitetsregistre.no/registers/norsk-ryggkirurgiregister>.
+All analysis scripts are provided here for transparency and reproducibility.
+
+## AI-assisted development
+
+Analysis scripts in this repository were developed with assistance from
+Claude Code (Anthropic; Claude Opus 4.6), an AI coding assistant. All code
+was executed, reviewed, and validated by the authors against original data
+sources; the authors take full responsibility for the analysis and findings.
+See the manuscript Methods section for the full disclosure statement.
 
 ## License
 
-Analysis code is provided for transparency and reproducibility. Please cite the
-associated publication if reusing any part of this work.
+This analysis code is released under the MIT License. See `LICENSE` for
+details. Please cite the associated publication if reusing any part of
+this work.

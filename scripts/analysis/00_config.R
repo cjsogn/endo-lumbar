@@ -1,10 +1,24 @@
 # =============================================================================
 # ENDO-LUMBAR: Configuration
 # Endoscopic vs microsurgical lumbar discectomy - NORspine registry study
+#
+# This file is sourced by every analysis script. It loads packages, sets the
+# project root via `here::here()` (so the pipeline works from any clone of
+# the repository), and defines shared parameters, priors, and helpers.
+#
+# The raw NORspine data file is not part of the repository and must be
+# requested from the registry. Set the environment variable
+# ENDO_LUMBAR_RAW_DATA to the path of the SPSS export, or edit
+# `paths$data_raw` directly below.
 # =============================================================================
 
 # --- Packages ----------------------------------------------------------------
+if (!requireNamespace("here", quietly = TRUE)) {
+  install.packages("here")
+}
+
 suppressPackageStartupMessages({
+  library(here)         # Project-relative paths
   library(haven)        # SPSS data import
   library(tidyverse)    # Data wrangling and visualization
   library(brms)         # Bayesian regression models (Stan backend)
@@ -28,11 +42,18 @@ suppressPackageStartupMessages({
 })
 
 # --- Paths -------------------------------------------------------------------
-# Set project root (update this path for your environment)
-project_root <- "/Users/cjsogn/ENDO_LUMBAR"
+# `project_root` is resolved from the repository root via the `here` package,
+# so the pipeline works from any clone of the repo.
+project_root <- here::here()
+
+# Raw NORspine export: set via environment variable or edit directly.
+data_raw_path <- Sys.getenv(
+  "ENDO_LUMBAR_RAW_DATA",
+  unset = file.path(project_root, "data", "raw_norspine_export.sav")
+)
 
 paths <- list(
-  data_raw    = "/Users/cjsogn/Documents/OUSSognEndeligUtvalg.sav",
+  data_raw    = data_raw_path,
   data_clean  = file.path(project_root, "data"),
   output      = project_root,
   tables      = file.path(project_root, "tables"),
