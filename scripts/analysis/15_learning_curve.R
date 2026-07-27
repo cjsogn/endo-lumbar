@@ -68,7 +68,10 @@ compute_quartile_stats <- function(d) {
     dplyr::summarise(
       n = n(),
       case_range = paste0(min(case_num), "-", max(case_num)),
-      date_range = paste0(min(surgery_date), " to ", max(surgery_date)),
+      # Month granularity only. Exact first and last surgery dates within a
+      # quartile pin down individual patients at a single centre.
+      date_range = paste0(format(min(surgery_date), "%Y-%m"), " to ",
+                          format(max(surgery_date), "%Y-%m")),
       op_time_n    = sum(!is.na(operating_time)),
       op_time_mean = mean(operating_time, na.rm = TRUE),
       op_time_sd   = sd(operating_time, na.rm = TRUE),

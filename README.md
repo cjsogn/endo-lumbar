@@ -20,9 +20,17 @@ Pre-registered on OSF Registries: <https://osf.io/82qra/>
 
 ## Repository contents
 
-This repository contains only the analysis scripts. Figure and manuscript
-generation scripts are not included; they are not required to reproduce
-the numerical results reported in the publication.
+- `scripts/analysis/` the analysis pipeline
+- `scripts/manuscript/` the scripts that build the manuscript, tables and figures
+- `tables/` aggregate result tables backing every number in the publication
+- `figures/main/` the three manuscript figures
+
+No individual patient data are included, and none can be. NORspine data are
+governed by a registry data-sharing agreement. Everything under `data/`,
+`results/` and `models/` is patient-level or derived model state and is
+excluded by `.gitignore`; the published tables are group-level summaries and
+posterior summaries only, and surgery dates appear at month granularity at
+finest.
 
 ```
 scripts/analysis/
@@ -42,9 +50,21 @@ scripts/analysis/
 ├── 13_subgroups_causal_forest.R   Bayesian subgroup interactions, causal forest
 ├── 14_eld_approach_comparison.R   Interlaminar vs transforaminal
 ├── 15_learning_curve.R            Operating time and ODI vs cumulative case number
-├── 16_frequentist_tmle.R          TMLE with SuperLearner cross-validation
+├── 16_frequentist_tmle.R          TMLE with SuperLearner (cross-fitted initial Q)
+├── 17_refit_12m_clean_eligibility.R  12-month models under date-based eligibility
+├── 18_figures_main.R              Figures 2 and 3, built from the result tables
+├── 19_supplement_additions.R      Surgical-level sensitivity, multiplicity, attrition
 └── run_all.R                      Master pipeline runner
+
+scripts/manuscript/
+├── generate_neurospine_submission.py  Title page, manuscript, Tables 1-2
+├── generate_neurospine_supplement.py  Supplementary material
+└── generate_flow_diagram.py           Figure 1
 ```
+
+The two document generators read every estimate from `tables/` at build time
+rather than carrying hard-coded numbers, so the manuscript, the tables and the
+figures cannot drift apart.
 
 ## Analysis pipeline
 
@@ -102,9 +122,13 @@ Alternatively, edit `paths$data_raw` directly in `scripts/analysis/00_config.R`.
 ## Computational notes
 
 - Default MCMC settings: 4 chains, 2000 iterations per chain (1000 warmup),
-  seed 20260204. A sensitivity check with 4000 iterations per chain
-  produced ATEs within 0.01 of the primary results for all outcomes and
-  did not change any non-inferiority conclusion.
+  seed 20260204. A sensitivity check with 4000 iterations per chain left
+  every non-inferiority conclusion unchanged; point estimates for the
+  patient-reported outcomes agreed to within 0.09 ODI points. The
+  length-of-stay row of `tables/comparison_2k_vs_4k.csv` is not valid: the
+  comparison script treats the cumulative ordinal model as continuous.
+  The reported length-of-stay effect comes from `07_perioperative_superiority.R`,
+  which handles the ordinal model correctly.
 - Full pipeline run time on a 14-core workstation: approximately 45-60 minutes.
 
 ## Data availability
@@ -116,11 +140,16 @@ All analysis scripts are provided here for transparency and reproducibility.
 
 ## AI-assisted development
 
-Analysis scripts in this repository were developed with assistance from
-Claude Code (Anthropic; Claude Opus 4.6), an AI coding assistant. All code
-was executed, reviewed, and validated by the authors against original data
-sources; the authors take full responsibility for the analysis and findings.
-See the manuscript Methods section for the full disclosure statement.
+Claude Code (Anthropic; Claude Opus 4.6 for the original analysis and Claude
+Opus 5 for the revision) was used as a coding and editing assistant. Its role
+covered drafting, debugging and optimising the analysis scripts, auditing the
+manuscript against the analysis output, and language editing. No analysis was
+accepted on the assistant's word: every reported estimate was regenerated from
+the registry data by scripts the authors read and ran. The study question,
+design, pre-registered protocol, clinical interpretation and all conclusions
+are the authors' own, and the authors take full responsibility for the analysis
+and findings. The manuscript Methods section carries the full statement,
+including representative prompts.
 
 ## License
 

@@ -36,7 +36,16 @@ set.seed(20260204L)
 # Load data
 cat("Loading data...\n")
 df_full <- readRDS(file.path(paths$data_clean, "df_disc_imp.rds"))
-df_12m  <- readRDS(file.path(paths$data_clean, "df_disc_12m_eligible.rds"))
+
+# 12-month eligibility is defined by surgery date alone (see script 17). The
+# earlier rule also admitted late-operated patients who happened to respond,
+# which conditions the analysis set on the outcome being observed.
+f12_datebased <- file.path(paths$data_clean, "df_disc_12m_eligible_datebased.rds")
+df_12m <- if (file.exists(f12_datebased)) {
+  readRDS(f12_datebased)
+} else {
+  readRDS(file.path(paths$data_clean, "df_disc_12m_eligible.rds"))
+}
 
 cat(sprintf("  Full sample: n=%d (ELD=%d, MSD=%d)\n",
             nrow(df_full), sum(df_full$treatment == "ELD"), sum(df_full$treatment == "MSD")))
@@ -132,7 +141,15 @@ run_tmle <- function(Y, A, W, family = "gaussian",
                      lower_is_better = TRUE, ni_margin = NULL,
                      sl_lib = c("SL.glm", "SL.glmnet", "SL.ranger", "SL.xgboost"),
                      cvcontrol = list(V = 10L),
-                     use_cvQinit = FALSE) {
+                     use_cvQinit = TRUE) {
+  # cvQinit = TRUE is the tmle package default and is required for the
+  # influence-curve variance to be valid when the SuperLearner library contains
+  # data-adaptive learners (ranger, xgboost). With cvQinit = FALSE the initial
+  # outcome regression is evaluated in-sample, the residuals entering the
+  # influence curve are shrunk by overfitting, and the standard errors are
+  # anti-conservative. This is still standard TMLE, not CV-TMLE: only the
+  # initial Q is cross-fitted, while the targeting step and the variance
+  # formula are unchanged.
 
   # Complete cases only
   cc <- complete.cases(Y)
@@ -748,7 +765,7 @@ for (i in seq_len(nrow(outcomes_12m))) {
       family = spec$family,
       Q.SL.library = sl_lib_mice,
       g.SL.library = sl_lib_mice,
-      cvQinit = FALSE,
+      cvQinit = TRUE,
       V.Q = 5L,
       V.g = 5L,
       obsWeights = wt_obs
@@ -762,7 +779,7 @@ for (i in seq_len(nrow(outcomes_12m))) {
         family = spec$family,
         Q.SL.library = c("SL.glm"),
         g.SL.library = c("SL.glm"),
-        cvQinit = FALSE,
+        cvQinit = TRUE,
         V.Q = 5L, V.g = 5L,
         obsWeights = wt_obs
       ),
@@ -815,6 +832,64 @@ for (i in seq_len(nrow(outcomes_12m))) {
 }
 
 # =============================================================================
+# SECTION 8b: TMLE FOR PERIOPERATIVE (TIER 3) OUTCOMES
+# =============================================================================
+# Prior-free confirmation of the gated superiority findings. Length of stay is
+# handled as the mean number of postoperative nights rather than as an ordinal
+# outcome, since TMLE targets a difference in means.
+
+cat("\n=== TMLE for Perioperative (Tier 3) Outcomes ===\n")
+
+tier3_specs <- list(
+  list(outcome = "day_surgery",  label = "Day surgery",
+       family = "binomial", lower_is_better = FALSE, ni_margin = 0.10),
+  list(outcome = "los_postop",   label = "LOS postop (nights)",
+       family = "gaussian", lower_is_better = TRUE,  ni_margin = NULL),
+  list(outcome = "pt_comp_any_3m", label = "Patient-reported complications 3m",
+       family = "binomial", lower_is_better = TRUE,  ni_margin = 0.10)
+)
+
+A_full <- as.integer(df_full$treatment == "ELD")
+tier3_tmle <- list()
+
+for (i in seq_along(tier3_specs)) {
+  spec <- tier3_specs[[i]]
+  if (!spec$outcome %in% names(df_full)) {
+    cat(sprintf("  [%d/%d] %s: column not found, skipped\n",
+                i, length(tier3_specs), spec$label))
+    next
+  }
+  cat(sprintf("  [%d/%d] %s...\n", i, length(tier3_specs), spec$label))
+
+  res <- tryCatch(
+    run_tmle(as.numeric(df_full[[spec$outcome]]), A_full, X_full,
+             family = spec$family,
+             lower_is_better = spec$lower_is_better,
+             ni_margin = spec$ni_margin,
+             sl_lib = sl_lib, cvcontrol = sl_cvcontrol),
+    error = function(e) {
+      cat(sprintf("    ERROR: %s\n", e$message)); NULL
+    }
+  )
+  if (is.null(res)) next
+
+  cat(sprintf("    N=%d, ATE=%.4f, SE=%.4f, 95%% CI [%.4f, %.4f]\n",
+              res$n, res$ate, res$se, res$ci_lo, res$ci_hi))
+
+  tier3_tmle[[spec$outcome]] <- tibble(
+    Outcome = spec$label, N = res$n, ATE = res$ate, SE = res$se,
+    CI_lo = res$ci_lo, CI_hi = res$ci_hi, Family = spec$family
+  )
+}
+
+if (length(tier3_tmle) > 0) {
+  tier3_tmle_tab <- bind_rows(tier3_tmle)
+  write.csv(tier3_tmle_tab, file.path(out_tables, "table_tmle_tier3.csv"),
+            row.names = FALSE)
+  cat("  Saved: table_tmle_tier3.csv\n")
+}
+
+# =============================================================================
 # SECTION 9: OUTPUT TABLES
 # =============================================================================
 
@@ -842,6 +917,16 @@ bayesian_primary_row <- data.frame(
 )
 bayesian_lookup <- rbind(bayesian_primary_row, bayesian_lookup)
 
+# Normalised key for label matching. The Bayesian table carries parenthetical
+# definitions (for example "Responder 3 months (>=30% or >=10pt)") that the
+# earlier substring match failed on, which left that row blank in the
+# comparison table.
+norm_label <- function(x) {
+  x <- sub("\\s*\\(.*\\)\\s*$", "", x)
+  tolower(trimws(gsub("\\s+", " ", x)))
+}
+bayesian_lookup$key <- norm_label(bayesian_lookup$Outcome)
+
 # Create comparison table
 comparison_rows <- list()
 for (i in seq_len(nrow(outcome_specs))) {
@@ -849,14 +934,7 @@ for (i in seq_len(nrow(outcome_specs))) {
   tmle_r <- tmle_results[[spec$outcome]]
 
   # Find matching Bayesian result
-  bay_match <- bayesian_lookup[bayesian_lookup$Outcome == spec$label, ]
-
-  if (nrow(bay_match) == 0) {
-    # Try partial match
-    bay_match <- bayesian_lookup[grepl(gsub(" \\d+m.*", "", spec$label),
-                                       bayesian_lookup$Outcome, ignore.case = TRUE) &
-                                 grepl(spec$timepoint, bayesian_lookup$Outcome), ]
-  }
+  bay_match <- bayesian_lookup[bayesian_lookup$key == norm_label(spec$label), ]
 
   bay_ate <- if (nrow(bay_match) > 0) bay_match$ATE[1] else NA_real_
   bay_lo  <- if (nrow(bay_match) > 0) bay_match$CrI_lo[1] else NA_real_
@@ -1065,12 +1143,19 @@ tmle_all_results <- list(
 saveRDS(tmle_all_results, file.path(out_results, "tmle_results.rds"))
 cat("  Saved: tmle_results.rds\n")
 
-# Also copy tables and figures to the old output paths for compatibility
+# Also copy tables and figures to the old output paths for compatibility.
+# Skip when the source and destination are the same file.
+copy_if_different <- function(from, to_dir) {
+  to <- file.path(to_dir, basename(from))
+  if (normalizePath(from, mustWork = FALSE) != normalizePath(to, mustWork = FALSE)) {
+    file.copy(from, to, overwrite = TRUE)
+  }
+}
 for (f in list.files(out_tables, pattern = "tmle", full.names = TRUE)) {
-  file.copy(f, file.path(paths$tables, basename(f)), overwrite = TRUE)
+  copy_if_different(f, paths$tables)
 }
 for (f in list.files(out_figures, pattern = "tmle|ps_overlap", full.names = TRUE)) {
-  file.copy(f, file.path(paths$figures, basename(f)), overwrite = TRUE)
+  copy_if_different(f, paths$figures)
 }
 
 cat("\n=============================================================================\n")

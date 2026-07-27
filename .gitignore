@@ -1,49 +1,116 @@
-# Data (not shareable - NORspine registry)
-data/
+# =============================================================================
+# ENDO-LUMBAR repository contents
+#
+# Published: analysis scripts, manuscript generation scripts, and aggregate
+# analysis output (result tables and manuscript figures).
+#
+# Never published: individual patient data in any form. NORspine data are
+# governed by a registry data-sharing agreement. Everything under data/,
+# results/ and models/ is patient-level or derived model state and is excluded
+# without exception, including results/reoperation_results.rds, which holds
+# per-patient identifiers and surgery dates.
+# =============================================================================
 
-# Model fits and results
+# --- Patient data and fitted model objects: never published -------------------
+data/
 results/
 models/
-
-# Output tables and figures
-tables/
-figures/
 diagnostics/
-
-# Manuscript documents (shared separately)
-manuscript/
-
-# Sensitivity subdirectories
 complete_case/
 supplementary_followup_eligible/
+*.rds
+*.npy
+*.nc
+*.sav
 
-# PyMC scripts (alternative implementation, not used in publication)
+# --- Manuscript documents: shared with the journal, not the repository --------
+# Anchored, so it does not also match scripts/manuscript/.
+/manuscript/
+
+# --- Aggregate analysis output: published -------------------------------------
+# Everything under tables/ and figures/ is excluded by default and re-included
+# file by file below, so nothing new is published by accident.
+tables/*
+figures/*
+!figures/main/
+figures/main/*
+
+# Result tables backing the manuscript
+!tables/table1_disc_herniation.csv
+!tables/table2_primary_results.csv
+!tables/table3_tier2_effectiveness.csv
+!tables/table3b_tier2_12m_datebased.csv
+!tables/table4_tier3_superiority.csv
+!tables/table5_prior_sensitivity.csv
+!tables/table6_missing_sensitivity.csv
+!tables/table_level_sensitivity.csv
+!tables/table_iptw_sensitivity.csv
+!tables/table_multiplicity.csv
+!tables/table_ltfu_3m.csv
+!tables/table_assurance.csv
+!tables/table_bayesian_vs_tmle.csv
+!tables/table_tmle_results.csv
+!tables/table_tmle_ipcw_12m.csv
+!tables/table_tmle_mice_pooled.csv
+!tables/table_tmle_tier3.csv
+!tables/table_eq5d_3m_scaled_priors.csv
+!tables/model_sensitivity_summary.csv
+!tables/falsification_test.csv
+!tables/followup_rates_disc.csv
+!tables/outcome_summary_disc.csv
+!tables/complication_components_disc.csv
+!tables/covariate_missingness_disc.csv
+!tables/reoperation_rates.csv
+!tables/table_eld_approach_unadjusted.csv
+!tables/table_eld_approach_adjusted.csv
+!tables/table_eld_approach_baseline.csv
+!tables/table_learning_curve_summary.csv
+!tables/table_learning_curve_quartiles.csv
+!tables/table_learning_curve_quartiles_pure_disc.csv
+!tables/table_odi_domain_means.csv
+!tables/variance_ratios_disc.csv
+!tables/tipping_point.csv
+!tables/comparison_2k_vs_4k.csv
+
+# Manuscript figures
+!figures/main/Figure1.png
+!figures/main/Figure2.png
+!figures/main/Figure3.png
+
+# --- Deliberately excluded ----------------------------------------------------
+# tables/brms_all_results.csv        superseded run; caused the figure/table drift
+# tables/loo_model_comparison.csv    compares likelihoods fitted to differently
+#                                    transformed outcomes, so it is not a valid
+#                                    model comparison and would mislead a reader
+# tables/table_pymc_*.csv            alternative PyMC implementation, not reported
+# tables/table_brms_vs_pymc.csv      as above
+# tables/pymc_ate_odi_3m_draws.csv   as above
+# tables/table1_stenosis.csv         stenosis population, not reported here
+# tables/table7_stenosis_unadjusted.csv
+# tables/table8_covariate_influence.csv
+# tables/ltfu_analysis_disc.csv      superseded by table_ltfu_3m.csv
+
+# --- Scripts not part of the published pipeline -------------------------------
 scripts/analysis/22_pymc_bayesian.py
 scripts/analysis/22a_export_data_for_pymc.R
 scripts/analysis/22b_refit_bernoulli.py
 scripts/analysis/22c_refit_ncp.py
 scripts/analysis/22d_refit_responder.py
 scripts/analysis/23_update_primary_outputs.py
-
-# Internal check scripts
 scripts/analysis/refit_4k.R
-
-# Manuscript generation scripts (separate from analysis)
-scripts/manuscript/
 scripts/review/
 
-# Non-publication output file types
-*.npy
-*.nc
-*.rds
+# Superseded document generators from the earlier submission
+scripts/manuscript/*
+!scripts/manuscript/generate_neurospine_submission.py
+!scripts/manuscript/generate_neurospine_supplement.py
+!scripts/manuscript/generate_flow_diagram.py
 
-# R/Python artifacts
+# --- Local artifacts ----------------------------------------------------------
 .Rhistory
 .RData
 Rplots.pdf
 __pycache__/
 *.pyc
 .DS_Store
-
-# Word temp files
 ~$*.docx

@@ -631,11 +631,19 @@ if (eld_sten_n >= 20) {
 # =============================================================================
 # 11b. CREATE 12-MONTH ELIGIBLE DATASETS
 # =============================================================================
-# Eligible: surgery <= 2024-12-31 or confirmed 12m questionnaire completion
+# Eligible: surgery early enough to have reached the 12-month questionnaire,
+# defined by surgery date alone (on or before 2025-02-28; the latest surgery
+# with an observed 12-month score is 2025-03-07).
+#
+# An earlier version of this rule was
+#   surgery_date <= "2024-12-31" | zap_labels(Ferdigstilt1b12mnd) == 1
+# The second clause admitted patients operated after the cutoff only if they had
+# responded, which conditions the analysis set on the outcome being observed. It
+# added 29 guaranteed responders (28 MSD, 1 ELD) and inflated the apparent
+# response rate from 72.8%/76.9% to 77%/77%.
 
 df_disc_12m_eligible <- df_disc_imp %>%
-  filter(surgery_date <= as.Date("2024-12-31") |
-         haven::zap_labels(Ferdigstilt1b12mnd) == 1)
+  filter(surgery_date <= as.Date("2025-02-28"))
 
 cat(sprintf("\n=== 12-Month Eligible Population (Disc Herniation) ===\n"))
 cat(sprintf("  Eligible: %d (ELD=%d, MSD=%d)\n",
