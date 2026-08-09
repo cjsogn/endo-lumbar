@@ -75,6 +75,14 @@ figures/main/*
 !tables/tipping_point.csv
 !tables/comparison_2k_vs_4k.csv
 
+# Calendar-time sensitivity (script 20) and cleaned operating time (script 22)
+!tables/table_tier3_calendar_time.csv
+!tables/table_primary_calendar_spline.csv
+!tables/table_learning_curve_robustness.csv
+!tables/table_learning_curve_quartiles_clean.csv
+!tables/table_operating_time_clean.csv
+!tables/table_corridor_operating_time_clean.csv
+
 # Manuscript figures
 !figures/main/Figure1.png
 !figures/main/Figure2.png
@@ -107,6 +115,7 @@ scripts/review/
 # These build the manuscript and its figures rather than producing any estimate.
 # Every number they render is read from tables/, which is published in full.
 scripts/analysis/18_figures_main.R
+scripts/analysis/21_figures_supplement.R
 scripts/manuscript/
 
 # --- Local artifacts ----------------------------------------------------------

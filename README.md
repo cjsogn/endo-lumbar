@@ -57,6 +57,8 @@ scripts/analysis/
 ├── 16_frequentist_tmle.R          TMLE with SuperLearner (cross-fitted initial Q)
 ├── 17_refit_12m_clean_eligibility.R  12-month models under date-based eligibility
 ├── 19_supplement_additions.R      Surgical-level sensitivity, multiplicity, attrition
+├── 20_calendar_time_sensitivity.R Calendar-time splines for the perioperative outcomes
+├── 22_operating_time_clean.R      Operating time with the two erroneous registrations removed
 └── run_all.R                      Master pipeline runner
 ```
 
