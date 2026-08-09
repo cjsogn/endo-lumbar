@@ -1,8 +1,11 @@
 # =============================================================================
 # ENDO-LUMBAR repository contents
 #
-# Published: analysis scripts, manuscript generation scripts, and aggregate
-# analysis output (result tables and manuscript figures).
+# Published: statistical analysis scripts and the aggregate analysis output
+# they produce (result tables and the manuscript figures).
+#
+# Not published: figure-drawing scripts and manuscript/document generators.
+# The repository is the analysis record, not the document build system.
 #
 # Never published: individual patient data in any form. NORspine data are
 # governed by a registry data-sharing agreement. Everything under data/,
@@ -100,11 +103,11 @@ scripts/analysis/23_update_primary_outputs.py
 scripts/analysis/refit_4k.R
 scripts/review/
 
-# Superseded document generators from the earlier submission
-scripts/manuscript/*
-!scripts/manuscript/generate_neurospine_submission.py
-!scripts/manuscript/generate_neurospine_supplement.py
-!scripts/manuscript/generate_flow_diagram.py
+# --- Figure-drawing and document generation: not published --------------------
+# These build the manuscript and its figures rather than producing any estimate.
+# Every number they render is read from tables/, which is published in full.
+scripts/analysis/18_figures_main.R
+scripts/manuscript/
 
 # --- Local artifacts ----------------------------------------------------------
 .Rhistory

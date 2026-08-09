@@ -20,10 +20,14 @@ Pre-registered on OSF Registries: <https://osf.io/82qra/>
 
 ## Repository contents
 
-- `scripts/analysis/` the analysis pipeline
-- `scripts/manuscript/` the scripts that build the manuscript, tables and figures
+- `scripts/analysis/` the statistical analysis pipeline
 - `tables/` aggregate result tables backing every number in the publication
 - `figures/main/` the three manuscript figures
+
+The repository holds the analysis record. Figure-drawing code and the scripts
+that assemble the manuscript document are not included, since they produce no
+estimate: every number they render is read from `tables/`, which is published
+here in full.
 
 No individual patient data are included, and none can be. NORspine data are
 governed by a registry data-sharing agreement. Everything under `data/`,
@@ -52,19 +56,9 @@ scripts/analysis/
 ├── 15_learning_curve.R            Operating time and ODI vs cumulative case number
 ├── 16_frequentist_tmle.R          TMLE with SuperLearner (cross-fitted initial Q)
 ├── 17_refit_12m_clean_eligibility.R  12-month models under date-based eligibility
-├── 18_figures_main.R              Figures 2 and 3, built from the result tables
 ├── 19_supplement_additions.R      Surgical-level sensitivity, multiplicity, attrition
 └── run_all.R                      Master pipeline runner
-
-scripts/manuscript/
-├── generate_neurospine_submission.py  Title page, manuscript, Tables 1-2
-├── generate_neurospine_supplement.py  Supplementary material
-└── generate_flow_diagram.py           Figure 1
 ```
-
-The two document generators read every estimate from `tables/` at build time
-rather than carrying hard-coded numbers, so the manuscript, the tables and the
-figures cannot drift apart.
 
 ## Analysis pipeline
 
