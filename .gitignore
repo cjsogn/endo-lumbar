@@ -1,11 +1,12 @@
 # =============================================================================
 # ENDO-LUMBAR repository contents
 #
-# Published: statistical analysis scripts and the aggregate analysis output
-# they produce (result tables and the manuscript figures).
+# Published: the statistical analysis scripts, and nothing else.
 #
-# Not published: figure-drawing scripts and manuscript/document generators.
-# The repository is the analysis record, not the document build system.
+# Not published: result tables, figures, figure-drawing scripts and
+# manuscript/document generators. The repository is the analysis code, not the
+# results archive or the document build system. Running the pipeline against
+# the registry data regenerates tables/ and figures/ locally.
 #
 # Never published: individual patient data in any form. NORspine data are
 # governed by a registry data-sharing agreement. Everything under data/,
@@ -30,76 +31,11 @@ supplementary_followup_eligible/
 # Anchored, so it does not also match scripts/manuscript/.
 /manuscript/
 
-# --- Aggregate analysis output: published -------------------------------------
-# Everything under tables/ and figures/ is excluded by default and re-included
-# file by file below, so nothing new is published by accident.
-tables/*
-figures/*
-!figures/main/
-figures/main/*
-
-# Result tables backing the manuscript
-!tables/table1_disc_herniation.csv
-!tables/table2_primary_results.csv
-!tables/table3_tier2_effectiveness.csv
-!tables/table3b_tier2_12m_datebased.csv
-!tables/table4_tier3_superiority.csv
-!tables/table5_prior_sensitivity.csv
-!tables/table6_missing_sensitivity.csv
-!tables/table_level_sensitivity.csv
-!tables/table_iptw_sensitivity.csv
-!tables/table_multiplicity.csv
-!tables/table_ltfu_3m.csv
-!tables/table_assurance.csv
-!tables/table_bayesian_vs_tmle.csv
-!tables/table_tmle_results.csv
-!tables/table_tmle_ipcw_12m.csv
-!tables/table_tmle_mice_pooled.csv
-!tables/table_tmle_tier3.csv
-!tables/table_eq5d_3m_scaled_priors.csv
-!tables/model_sensitivity_summary.csv
-!tables/falsification_test.csv
-!tables/followup_rates_disc.csv
-!tables/outcome_summary_disc.csv
-!tables/complication_components_disc.csv
-!tables/covariate_missingness_disc.csv
-!tables/reoperation_rates.csv
-!tables/table_eld_approach_unadjusted.csv
-!tables/table_eld_approach_adjusted.csv
-!tables/table_eld_approach_baseline.csv
-!tables/table_learning_curve_summary.csv
-!tables/table_learning_curve_quartiles.csv
-!tables/table_learning_curve_quartiles_pure_disc.csv
-!tables/table_odi_domain_means.csv
-!tables/variance_ratios_disc.csv
-!tables/tipping_point.csv
-!tables/comparison_2k_vs_4k.csv
-
-# Calendar-time sensitivity (script 20) and cleaned operating time (script 22)
-!tables/table_tier3_calendar_time.csv
-!tables/table_primary_calendar_spline.csv
-!tables/table_learning_curve_robustness.csv
-!tables/table_learning_curve_quartiles_clean.csv
-!tables/table_operating_time_clean.csv
-!tables/table_corridor_operating_time_clean.csv
-
-# Manuscript figures
-!figures/main/Figure1.png
-!figures/main/Figure2.png
-!figures/main/Figure3.png
-
-# --- Deliberately excluded ----------------------------------------------------
-# tables/brms_all_results.csv        superseded run; caused the figure/table drift
-# tables/loo_model_comparison.csv    compares likelihoods fitted to differently
-#                                    transformed outcomes, so it is not a valid
-#                                    model comparison and would mislead a reader
-# tables/table_pymc_*.csv            alternative PyMC implementation, not reported
-# tables/table_brms_vs_pymc.csv      as above
-# tables/pymc_ate_odi_3m_draws.csv   as above
-# tables/table1_stenosis.csv         stenosis population, not reported here
-# tables/table7_stenosis_unadjusted.csv
-# tables/table8_covariate_influence.csv
-# tables/ltfu_analysis_disc.csv      superseded by table_ltfu_3m.csv
+# --- Result tables and figures: not published ---------------------------------
+# Regenerated locally by the pipeline; the reported values live in the article
+# and its supplementary material.
+tables/
+figures/
 
 # --- Scripts not part of the published pipeline -------------------------------
 scripts/analysis/22_pymc_bayesian.py
@@ -113,7 +49,6 @@ scripts/review/
 
 # --- Figure-drawing and document generation: not published --------------------
 # These build the manuscript and its figures rather than producing any estimate.
-# Every number they render is read from tables/, which is published in full.
 scripts/analysis/18_figures_main.R
 scripts/analysis/21_figures_supplement.R
 scripts/manuscript/

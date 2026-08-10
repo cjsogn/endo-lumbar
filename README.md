@@ -21,20 +21,19 @@ Pre-registered on OSF Registries: <https://osf.io/82qra/>
 ## Repository contents
 
 - `scripts/analysis/` the statistical analysis pipeline
-- `tables/` aggregate result tables backing every number in the publication
-- `figures/main/` the three manuscript figures
 
-The repository holds the analysis record. Figure-drawing code and the scripts
-that assemble the manuscript document are not included, since they produce no
-estimate: every number they render is read from `tables/`, which is published
-here in full.
+This repository publishes the analysis code only. Result tables, figures,
+figure-drawing code and the scripts that assemble the manuscript document are
+not included. Running the pipeline against the registry data regenerates the
+tables and figures locally, under `tables/` and `figures/`.
+
+The reported estimates are in the published article and its supplementary
+material.
 
 No individual patient data are included, and none can be. NORspine data are
 governed by a registry data-sharing agreement. Everything under `data/`,
 `results/` and `models/` is patient-level or derived model state and is
-excluded by `.gitignore`; the published tables are group-level summaries and
-posterior summaries only, and surgery dates appear at month granularity at
-finest.
+excluded by `.gitignore`.
 
 ```
 scripts/analysis/
@@ -121,10 +120,10 @@ Alternatively, edit `paths$data_raw` directly in `scripts/analysis/00_config.R`.
   seed 20260204. A sensitivity check with 4000 iterations per chain left
   every non-inferiority conclusion unchanged; point estimates for the
   patient-reported outcomes agreed to within 0.09 ODI points. The
-  length-of-stay row of `tables/comparison_2k_vs_4k.csv` is not valid: the
-  comparison script treats the cumulative ordinal model as continuous.
-  The reported length-of-stay effect comes from `07_perioperative_superiority.R`,
-  which handles the ordinal model correctly.
+  length-of-stay row that comparison writes to `tables/comparison_2k_vs_4k.csv`
+  is not valid: the comparison script treats the cumulative ordinal model as
+  continuous. The reported length-of-stay effect comes from
+  `07_perioperative_superiority.R`, which handles the ordinal model correctly.
 - Full pipeline run time on a 14-core workstation: approximately 45-60 minutes.
 
 ## Data availability
