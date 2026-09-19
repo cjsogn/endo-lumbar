@@ -1,63 +1,28 @@
-# =============================================================================
-# ENDO-LUMBAR repository contents
-#
-# Published: the statistical analysis scripts, and nothing else.
-#
-# Not published: result tables, figures, figure-drawing scripts and
-# manuscript/document generators. The repository is the analysis code, not the
-# results archive or the document build system. Running the pipeline against
-# the registry data regenerates tables/ and figures/ locally.
-#
-# Never published: individual patient data in any form. NORspine data are
-# governed by a registry data-sharing agreement. Everything under data/,
-# results/ and models/ is patient-level or derived model state and is excluded
-# without exception, including results/reoperation_results.rds, which holds
-# per-patient identifiers and surgery dates.
-# =============================================================================
-
-# --- Patient data and fitted model objects: never published -------------------
-data/
-results/
-models/
-diagnostics/
-complete_case/
-supplementary_followup_eligible/
-*.rds
-*.npy
-*.nc
-*.sav
-
-# --- Manuscript documents: shared with the journal, not the repository --------
-# Anchored, so it does not also match scripts/manuscript/.
-/manuscript/
-
-# --- Result tables and figures: not published ---------------------------------
-# Regenerated locally by the pipeline; the reported values live in the article
-# and its supplementary material.
-tables/
-figures/
-
-# --- Scripts not part of the published pipeline -------------------------------
-scripts/analysis/22_pymc_bayesian.py
-scripts/analysis/22a_export_data_for_pymc.R
-scripts/analysis/22b_refit_bernoulli.py
-scripts/analysis/22c_refit_ncp.py
-scripts/analysis/22d_refit_responder.py
-scripts/analysis/23_update_primary_outputs.py
-scripts/analysis/refit_4k.R
-scripts/review/
-
-# --- Figure-drawing and document generation: not published --------------------
-# These build the manuscript and its figures rather than producing any estimate.
-scripts/analysis/18_figures_main.R
-scripts/analysis/21_figures_supplement.R
-scripts/manuscript/
-
-# --- Local artifacts ----------------------------------------------------------
-.Rhistory
-.RData
-Rplots.pdf
-__pycache__/
-*.pyc
-.DS_Store
-~$*.docx
+# Default deny. Only explicitly reviewed source/documentation files can be added.
+*
+!/.gitignore
+!/LICENSE
+!/README.md
+!/DEPENDENCIES.md
+!/RELEASE_FILES.txt
+!/scripts/
+!/scripts/check_release.py
+!/scripts/analysis/
+!/scripts/analysis/00_config.R
+!/scripts/analysis/01_import_registry.R
+!/scripts/analysis/01_prepare_data.R
+!/scripts/analysis/02_fit_primary.R
+!/scripts/analysis/02_primary_jobs.R
+!/scripts/analysis/02_summarize_primary.R
+!/scripts/analysis/03_model_jobs.R
+!/scripts/analysis/04_model_scheduler.py
+!/scripts/analysis/04_run_calendar_models.R
+!/scripts/analysis/05_primary_derived_sensitivities.R
+!/scripts/analysis/06_primary_model_sensitivities.R
+!/scripts/analysis/07_tmle_matched_checks.R
+!/scripts/analysis/08_selection_model.R
+!/scripts/analysis/09_model_and_population_audit.R
+!/scripts/analysis/11_predictive_diagnostics.R
+!/scripts/analysis/12_finalize_result_tables.R
+!/scripts/analysis/13_descriptive_analyses.R
+!/scripts/analysis/run_all.R

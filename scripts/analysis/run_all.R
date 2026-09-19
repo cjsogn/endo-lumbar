@@ -1,103 +1,38 @@
-# =============================================================================
-# ENDO-LUMBAR: Master pipeline runner
-# Executes all analysis scripts in sequence with timing and error reporting.
-#
-# Usage:
-#   Rscript scripts/analysis/run_all.R
-#
-# Paths are resolved from the repository root via the `here` package, so the
-# pipeline works from any clone of the repository.
-# =============================================================================
-
-if (!requireNamespace("here", quietly = TRUE)) install.packages("here")
-library(here)
-
-cat("====================================================================\n")
-cat("  ENDO-LUMBAR: Full Analysis Pipeline\n")
-cat("  Endoscopic vs Microsurgical Lumbar Discectomy\n")
-cat("====================================================================\n\n")
-
-start_time <- Sys.time()
-script_dir <- here("scripts", "analysis")
-
-scripts <- c(
-  "01_data_preparation.R",
-  "02_descriptive_table1.R",
-  "03_propensity_balance.R",
-  "04_primary_analysis.R",
-  "05_mcmc_diagnostics.R",
-  "06_secondary_effectiveness.R",
-  "07_perioperative_superiority.R",
-  "08_descriptive_tier4.R",
-  "09_prior_sensitivity.R",
-  "10_missing_data_sensitivity.R",
-  "11_model_sensitivity.R",
-  "12_falsification_evalue.R",
-  "13_subgroups_causal_forest.R",
-  "14_eld_approach_comparison.R",
-  "15_learning_curve.R",
-  "16_frequentist_tmle.R"
-)
-
-results <- list()
-
-for (i in seq_along(scripts)) {
-  s <- scripts[i]
-  path <- file.path(script_dir, s)
-
-  if (!file.exists(path)) {
-    cat(sprintf("\n[%d/%d] SKIP: %s (not found)\n", i, length(scripts), s))
-    results[[s]] <- list(status = "SKIPPED", time = 0)
-    next
-  }
-
-  cat(sprintf("\n[%d/%d] %s ... (%s)\n", i, length(scripts), s, Sys.time()))
-  t0 <- Sys.time()
-
-  status <- tryCatch({
-    source(path, local = new.env(parent = globalenv()))
-    "OK"
-  }, error = function(e) {
-    cat(sprintf("\n  [ERROR] %s: %s\n", s, conditionMessage(e)))
-    paste("ERROR:", conditionMessage(e))
-  })
-
-  elapsed <- as.numeric(difftime(Sys.time(), t0, units = "mins"))
-  cat(sprintf("  [%s] %s (%.1f min)\n",
-              ifelse(status == "OK", "DONE", "FAIL"), s, elapsed))
-
-  results[[s]] <- list(status = status, time = elapsed)
+# Run from any working directory. Data and output locations must be explicit.
+file_arg <- grep("^--file=",commandArgs(FALSE),value=TRUE)
+if(length(file_arg)!=1L) stop("Run this entry point with Rscript.")
+script <- sub("^--file=","",file_arg)
+# Rscript can encode spaces in its --file command argument.
+if(!file.exists(script)) script <- gsub("~+~"," ",script,fixed=TRUE)
+code <- dirname(normalizePath(script,mustWork=TRUE))
+Sys.setenv(ENDO_CODE_DIR=code)
+source(file.path(code,"00_config.R"))
+required <- c("brms","posterior","haven","cmdstanr","dplyr","tidyr","tibble",
+              "tableone","loo","tmle","SuperLearner","mice","glmnet","ranger","xgboost")
+missing <- required[!vapply(required,requireNamespace,logical(1),quietly=TRUE)]
+if(length(missing)) stop(paste("Install the required packages:",paste(missing,collapse=", ")))
+if(!nzchar(Sys.which("python3"))) stop("Python 3 is required for scheduling.")
+cmdstanr::cmdstan_path()
+if(!nzchar(RAW_DATA) || !file.exists(RAW_DATA)) stop("Set ENDO_LUMBAR_RAW_DATA to the private SPSS export.")
+Sys.unsetenv(c("ENDO_MODEL_WORKER","ENDO_CHAIN_CORES","ENDO_LOAD_ONLY",
+              "ENDO_MANIFEST","ENDO_SCRIPT","ENDO_BATCH"))
+stages <- c("01_import_registry.R","01_prepare_data.R","02_fit_primary.R",
+ "02_summarize_primary.R","04_run_calendar_models.R","05_primary_derived_sensitivities.R",
+ "06_primary_model_sensitivities.R","07_tmle_matched_checks.R","08_selection_model.R",
+ "09_model_and_population_audit.R","11_predictive_diagnostics.R",
+ "12_finalize_result_tables.R","13_descriptive_analyses.R")
+args <- commandArgs(trailingOnly=TRUE)
+if(length(args)) {
+ if(any(!args %in% stages)) stop("Unknown stage. Supply exact stage filenames listed in run_all.R.")
+ stages<-stages[stages %in% args]
 }
-
-# --- Summary ---
-total <- as.numeric(difftime(Sys.time(), start_time, units = "mins"))
-
-cat("\n====================================================================\n")
-cat("  PIPELINE SUMMARY\n")
-cat(sprintf("  Total time: %.1f min (%.1f hours)\n", total, total / 60))
-cat("====================================================================\n")
-
-for (s in names(results)) {
-  r <- results[[s]]
-  cat(sprintf("  %-45s %s (%.1f min)\n", s, r$status, r$time))
+versions<-data.frame(package=required,version=vapply(required,function(p)as.character(packageVersion(p)),character(1)))
+write_csv(versions,"10_logs/package_versions.csv")
+for(stage in stages) {
+ cat("Running",stage,"\n");flush.console()
+ status<-system2(file.path(R.home("bin"),"Rscript"),shQuote(file.path(code,stage)),
+                 stdout=file.path(ROOT,"10_logs",paste0(stage,".log")),
+                 stderr=file.path(ROOT,"10_logs",paste0(stage,".log")))
+ if(status!=0) stop(paste("Stage failed:",stage,". Read its log in ENDO_WORK_DIR/10_logs."))
 }
-
-n_ok   <- sum(sapply(results, function(r) r$status == "OK"))
-n_fail <- sum(sapply(results, function(r) grepl("^ERROR", r$status)))
-cat(sprintf("\n  OK: %d | FAILED: %d | SKIPPED: %d\n",
-            n_ok, n_fail, length(scripts) - n_ok - n_fail))
-
-# Print primary result if available
-primary_path <- here("primary_results.rds")
-if (file.exists(primary_path)) {
-  primary <- readRDS(primary_path)
-  cat("\n  PRIMARY RESULT:\n")
-  cat(sprintf("    ATE (ODI 3m): %.2f (95%% CrI: [%.2f, %.2f])\n",
-              primary$ate_summary$mean,
-              primary$ate_summary$cri_lo,
-              primary$ate_summary$cri_hi))
-  cat(sprintf("    P(NI): %.4f -> %s\n",
-              primary$ate_summary$p_ni,
-              ifelse(primary$ate_summary$ni_conclusion,
-                     "NON-INFERIOR", "NOT DEMONSTRATED")))
-}
+cat("Requested stages finished. Output is in",ROOT,"\n")

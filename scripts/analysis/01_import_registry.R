@@ -1,26 +1,8 @@
-# =============================================================================
-# ENDO-LUMBAR: 01 Data Preparation
-# Load, clean, define populations, derive variables
-# =============================================================================
-
-if (!requireNamespace("here", quietly = TRUE)) install.packages("here")
-source(here::here("scripts", "analysis", "00_config.R"))
-
-# =============================================================================
-# 1. LOAD DATA
-# =============================================================================
-cat("Loading data...\n")
-raw <- read_sav(paths$data_raw, encoding = "latin1")
-cat(sprintf("  Raw data: %d patients, %d variables\n", nrow(raw), ncol(raw)))
-
-# =============================================================================
-# 2. DEFINE TREATMENT GROUPS
-# =============================================================================
-# OpMikroV3: 1=Mikroskopi, 2=Lupebriller, 3=Endoskopi, 0=Nei, 9=Ikke utfylt
-# ELD = Endoscopic (OpMikroV3 == 3)
-# MSD = Microsurgical (OpMikroV3 == 1, i.e., microscope-assisted)
-# Exclude: Loupes (2), None (0), Not filled (9)
-
+source(file.path(Sys.getenv("ENDO_CODE_DIR"), "00_config.R"))
+suppressPackageStartupMessages({library(dplyr);library(tidyr);library(tibble)})
+if(!nzchar(RAW_DATA) || !file.exists(RAW_DATA)) stop("Set ENDO_LUMBAR_RAW_DATA to the private SPSS registry export.")
+raw <- read_sav(RAW_DATA,encoding="latin1")
+stopifnot(!anyNA(raw$ForlopsID),!anyDuplicated(raw$ForlopsID))
 df <- raw %>%
   mutate(
     treatment = case_when(
@@ -31,7 +13,7 @@ df <- raw %>%
   ) %>%
   filter(!is.na(treatment))
 
-cat(sprintf("  After treatment group filter: %d patients (ELD=%d, MSD=%d)\n",
+cat(sprintf("  After treatment group filter: %d procedures (ELD=%d, MSD=%d)\n",
             nrow(df), sum(df$treatment == "ELD"), sum(df$treatment == "MSD")))
 
 # =============================================================================
@@ -54,7 +36,7 @@ df <- df %>%
     pop_disc = as.integer(HovedInngrepV2V3 == 1),
     # Stenosis population: decompression (midline-preserving or laminectomy)
     pop_stenosis = as.integer(HovedInngrepV2V3 %in% c(2, 3)),
-    # Exclude fusion, revision, osteotomy, disc replacement for primary comparisons
+    # Exclude fusion, osteotomy and disc replacement procedure categories
     eligible = as.integer(HovedInngrepV2V3 %in% c(1, 2, 3))
   )
 
@@ -417,11 +399,6 @@ df <- df %>%
     treatment_num = as.integer(treatment == "ELD")
   )
 
-# =============================================================================
-# 7. MISSING DATA ASSESSMENT
-# =============================================================================
-
-# Define covariate list for missing assessment
 covariates <- c(
   "age", "sex", "bmi", "smoking", "education", "employed_baseline",
   "sick_leave", "disability", "analgesic_baseline",
@@ -432,68 +409,6 @@ covariates <- c(
   "prior_surgery", "prior_surgery_any", "n_prior_surgeries",
   "multilevel"
 )
-
-outcomes <- c(
-  "odi_3m", "odi_12m",
-  "nrs_back_3m", "nrs_back_12m", "nrs_leg_3m", "nrs_leg_12m",
-  "eq5d_3m", "eq5d_12m",
-  "responder_3m", "rtw_3m", "rtw_12m",
-  "analgesic_3m", "analgesic_12m",
-  "satisfied_3m", "satisfied_12m",
-  "gpe_success_3m", "gpe_success_12m",
-  "day_surgery", "los_total", "los_postop",
-  "perop_comp_any", "pt_comp_any_3m",
-  "reop_during_stay", "operating_time",
-  "eq5d_anxiety_3m", "eq5d_anxiety_12m"
-)
-
-# Missing data summary
-cat("\n=== Missing Data Assessment ===\n")
-cat("\nCovariates:\n")
-miss_cov <- df %>%
-  dplyr::summarise(across(all_of(covariates), ~sum(is.na(.)))) %>%
-  pivot_longer(everything(), names_to = "variable", values_to = "n_missing") %>%
-  mutate(
-    pct_missing = n_missing / nrow(df) * 100,
-    category = case_when(
-      pct_missing < 5 ~ "<5% (median/mode impute)",
-      pct_missing < 50 ~ "5-50% (brms sub-model)",
-      TRUE ~ ">50% (latent + informative prior)"
-    )
-  )
-print(miss_cov, n = 30)
-
-cat("\nOutcomes:\n")
-miss_out <- df %>%
-  dplyr::summarise(across(all_of(outcomes), ~sum(is.na(.)))) %>%
-  pivot_longer(everything(), names_to = "variable", values_to = "n_missing") %>%
-  mutate(pct_missing = n_missing / nrow(df) * 100)
-print(miss_out, n = 30)
-
-# =============================================================================
-# 8. HANDLE MISSING COVARIATES
-# =============================================================================
-
-# Identify missing rates for disc herniation population specifically
-df_disc <- df %>% filter(pop_disc == 1)
-
-cat("\n=== Missing Data in Disc Herniation Population ===\n")
-miss_disc <- df_disc %>%
-  dplyr::summarise(across(all_of(covariates), ~sum(is.na(.)))) %>%
-  pivot_longer(everything(), names_to = "variable", values_to = "n_missing") %>%
-  mutate(
-    pct_missing = n_missing / nrow(df_disc) * 100,
-    handling = case_when(
-      pct_missing == 0 ~ "Complete",
-      pct_missing < 5 ~ "Median/mode impute",
-      pct_missing < 50 ~ "brms sub-model",
-      TRUE ~ "Latent + prior"
-    )
-  ) %>%
-  arrange(desc(pct_missing))
-print(miss_disc, n = 30)
-
-# Deterministic imputation for <5% missing covariates
 impute_median_mode <- function(x) {
   if (is.numeric(x)) {
     x[is.na(x)] <- median(x, na.rm = TRUE)
@@ -504,184 +419,17 @@ impute_median_mode <- function(x) {
   x
 }
 
-# Identify which covariates need simple imputation vs sub-models
-# (Computed within each analysis population)
 
-# =============================================================================
-# 9. CREATE ANALYSIS DATASETS
-# =============================================================================
-
-# Disc herniation population (primary) — restricted to overlap period (see eMethods 7)
-df_disc <- df %>%
-  filter(pop_disc == 1) %>%
-  filter(surgery_date >= as.Date("2023-10-01")) %>%
-  mutate(population = "disc_herniation")
-
-# Stenosis population (exploratory) — restricted to overlap period (see eMethods 7)
-df_sten <- df %>%
-  filter(pop_stenosis == 1) %>%
-  filter(surgery_date >= as.Date("2023-10-01")) %>%
-  mutate(population = "stenosis")
-
-cat(sprintf("\n=== Analysis Populations ===\n"))
-cat(sprintf("Disc herniation: %d (ELD=%d, MSD=%d)\n",
-            nrow(df_disc),
-            sum(df_disc$treatment == "ELD"),
-            sum(df_disc$treatment == "MSD")))
-cat(sprintf("  3m follow-up: %d (%.1f%%)\n",
-            sum(df_disc$fu_3m_completed == 1, na.rm = TRUE),
-            100 * mean(df_disc$fu_3m_completed == 1, na.rm = TRUE)))
-cat(sprintf("  12m follow-up: %d (%.1f%%)\n",
-            sum(df_disc$fu_12m_completed == 1, na.rm = TRUE),
-            100 * mean(df_disc$fu_12m_completed == 1, na.rm = TRUE)))
-
-cat(sprintf("\nStenosis: %d (ELD=%d, MSD=%d)\n",
-            nrow(df_sten),
-            sum(df_sten$treatment == "ELD"),
-            sum(df_sten$treatment == "MSD")))
-cat(sprintf("  3m follow-up: %d (%.1f%%)\n",
-            sum(df_sten$fu_3m_completed == 1, na.rm = TRUE),
-            100 * mean(df_sten$fu_3m_completed == 1, na.rm = TRUE)))
-
-# =============================================================================
-# 10. APPLY SIMPLE IMPUTATION FOR <5% MISSING COVARIATES
-# =============================================================================
-
-# For the disc herniation analysis dataset
-# First identify which covariates have <5% missing
-disc_miss_pct <- df_disc %>%
-  dplyr::summarise(across(all_of(covariates), ~mean(is.na(.)))) %>%
-  pivot_longer(everything(), names_to = "var", values_to = "pct") %>%
-  deframe()
-
-covs_impute_simple <- names(disc_miss_pct[disc_miss_pct > 0 & disc_miss_pct < 0.05])
-covs_submodel      <- names(disc_miss_pct[disc_miss_pct >= 0.05 & disc_miss_pct < 0.50])
-covs_latent        <- names(disc_miss_pct[disc_miss_pct >= 0.50])
-covs_complete      <- names(disc_miss_pct[disc_miss_pct == 0])
-
-cat("\n=== Covariate Missing Data Handling (Disc Herniation) ===\n")
-cat("Complete (0%):", paste(covs_complete, collapse = ", "), "\n")
-cat("Simple impute (<5%):", paste(covs_impute_simple, collapse = ", "), "\n")
-cat("Sub-model (5-50%):", paste(covs_submodel, collapse = ", "), "\n")
-cat("Latent (>50%):", paste(covs_latent, collapse = ", "), "\n")
-
-# Save missingness table for manuscript
-miss_disc_table <- df_disc %>%
-  dplyr::summarise(across(all_of(covariates), ~sum(is.na(.)))) %>%
-  pivot_longer(everything(), names_to = "variable", values_to = "n_missing") %>%
-  mutate(
-    n_total = nrow(df_disc),
-    pct_missing = round(n_missing / n_total * 100, 1),
-    handling = case_when(
-      pct_missing == 0 ~ "Complete",
-      pct_missing < 5 ~ "Median/mode impute",
-      pct_missing < 50 ~ "brms sub-model",
-      TRUE ~ "Latent + informative prior"
-    )
-  ) %>%
-  arrange(desc(pct_missing))
-write.csv(miss_disc_table, file.path(paths$tables, "covariate_missingness_disc.csv"),
-          row.names = FALSE)
-
-# Apply simple imputation
+# Define the overlap cohort before imputing baseline covariates.
+df_disc <- df %>% filter(pop_disc==1,surgery_date>=as.Date("2023-10-01")) %>%
+ mutate(population="disc_herniation")
+rates <- vapply(df_disc[covariates],function(x)mean(is.na(x)),numeric(1))
+# This release implements the low-missingness baseline rule used in the study.
+# Stop on data needing a different missing-covariate model.
+if(any(rates>=.05)) stop("Baseline missingness exceeds the implemented median/mode rule. Review the data and analysis specification.")
 df_disc_imp <- df_disc
-for (v in covs_impute_simple) {
-  df_disc_imp[[v]] <- impute_median_mode(df_disc_imp[[v]])
-}
-
-# Keep unimputed version for sensitivity analysis
-df_disc_raw <- df_disc
-
-# Same for stenosis
-df_sten_imp <- df_sten
-sten_miss_pct <- df_sten %>%
-  dplyr::summarise(across(all_of(covariates), ~mean(is.na(.)))) %>%
-  pivot_longer(everything(), names_to = "var", values_to = "pct") %>%
-  deframe()
-covs_impute_simple_sten <- names(sten_miss_pct[sten_miss_pct > 0 & sten_miss_pct < 0.05])
-for (v in covs_impute_simple_sten) {
-  df_sten_imp[[v]] <- impute_median_mode(df_sten_imp[[v]])
-}
-
-# =============================================================================
-# 11. FEASIBILITY CHECK
-# =============================================================================
-
-cat("\n=== Feasibility Assessment ===\n")
-eld_disc_n <- sum(df_disc$treatment == "ELD")
-cat(sprintf("ELD disc herniation: %d (threshold: 50, 80%% assurance: 55)\n", eld_disc_n))
-if (eld_disc_n >= 55) {
-  cat("  PASS: Exceeds 80% assurance threshold\n")
-} else if (eld_disc_n >= 50) {
-  cat("  MARGINAL: Between proceed threshold (50) and assurance threshold (55)\n")
-  cat("  Analysis proceeds with ~75% assurance\n")
-} else {
-  cat("  BELOW THRESHOLD: Consider extending extraction period\n")
-}
-
-# Stenosis
-eld_sten_n <- sum(df_sten$treatment == "ELD")
-cat(sprintf("\nELD stenosis: %d (threshold for full model: 20)\n", eld_sten_n))
-if (eld_sten_n >= 20) {
-  cat("  Full adjusted model feasible\n")
-} else {
-  cat("  Only unadjusted comparison feasible\n")
-}
-
-# =============================================================================
-# 11b. CREATE 12-MONTH ELIGIBLE DATASETS
-# =============================================================================
-# Eligible: surgery early enough to have reached the 12-month questionnaire,
-# defined by surgery date alone (on or before 2025-02-28; the latest surgery
-# with an observed 12-month score is 2025-03-07).
-#
-# An earlier version of this rule was
-#   surgery_date <= "2024-12-31" | zap_labels(Ferdigstilt1b12mnd) == 1
-# The second clause admitted patients operated after the cutoff only if they had
-# responded, which conditions the analysis set on the outcome being observed. It
-# added 29 guaranteed responders (28 MSD, 1 ELD) and inflated the apparent
-# response rate from 72.8%/76.9% to 77%/77%.
-
-df_disc_12m_eligible <- df_disc_imp %>%
-  filter(surgery_date <= as.Date("2025-02-28"))
-
-cat(sprintf("\n=== 12-Month Eligible Population (Disc Herniation) ===\n"))
-cat(sprintf("  Eligible: %d (ELD=%d, MSD=%d)\n",
-            nrow(df_disc_12m_eligible),
-            sum(df_disc_12m_eligible$treatment == "ELD"),
-            sum(df_disc_12m_eligible$treatment == "MSD")))
-cat(sprintf("  12m questionnaire completed: %d (%.1f%%)\n",
-            sum(df_disc_12m_eligible$fu_12m_completed == 1, na.rm = TRUE),
-            100 * mean(df_disc_12m_eligible$fu_12m_completed == 1, na.rm = TRUE)))
-cat(sprintf("  ODI 12m observed: %d (%.1f%%)\n",
-            sum(!is.na(df_disc_12m_eligible$odi_12m)),
-            100 * mean(!is.na(df_disc_12m_eligible$odi_12m))))
-
-# =============================================================================
-# 12. SAVE ANALYSIS DATASETS
-# =============================================================================
-
-# Save as RDS for R analysis
-saveRDS(df, file.path(paths$data_clean, "df_all.rds"))
-saveRDS(df_disc, file.path(paths$data_clean, "df_disc.rds"))
-saveRDS(df_disc_imp, file.path(paths$data_clean, "df_disc_imp.rds"))
-saveRDS(df_disc_raw, file.path(paths$data_clean, "df_disc_raw.rds"))
-saveRDS(df_disc_12m_eligible, file.path(paths$data_clean, "df_disc_12m_eligible.rds"))
-saveRDS(df_sten, file.path(paths$data_clean, "df_sten.rds"))
-saveRDS(df_sten_imp, file.path(paths$data_clean, "df_sten_imp.rds"))
-
-# Save variable metadata
-var_meta <- list(
-  covariates = covariates,
-  outcomes = outcomes,
-  covs_complete = covs_complete,
-  covs_impute_simple = covs_impute_simple,
-  covs_submodel = covs_submodel,
-  covs_latent = covs_latent,
-  ni_margins = ni_margins,
-  treatment_levels = levels(df$treatment)
-)
-saveRDS(var_meta, file.path(paths$data_clean, "var_meta.rds"))
-
-cat("\n=== Data preparation complete ===\n")
-cat(sprintf("Files saved to: %s\n", paths$data_clean))
+for(v in names(rates)[rates>0 & rates<.05]) df_disc_imp[[v]] <- impute_median_mode(df_disc_imp[[v]])
+saveRDS(df,file.path(ROOT,"02_data/source/df_all.rds"))
+saveRDS(df_disc,file.path(ROOT,"02_data/source/df_disc_raw.rds"))
+saveRDS(df_disc_imp,file.path(ROOT,"02_data/source/df_disc_imp.rds"))
+write_csv(data.frame(variable=names(rates),missing_fraction=rates),"04_results/baseline_missingness.csv")
