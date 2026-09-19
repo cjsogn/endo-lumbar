@@ -3,7 +3,7 @@ d <- readRDS(file.path(ROOT,"02_data/derived/cohort_3m.rds"))
 new <- read.csv(file.path(ROOT,"04_results/calendar_all_bayesian_results.csv"))
 los <- new[new$id=="los_postop",]
 write_csv(data.frame(estimate=exp(los$mean),lower=exp(los$lower),upper=exp(los$upper),
- summary="Exponentiated posterior mean log OR, as in submitted reporting"),"04_results/los_odds_ratio.csv")
+ summary="Exponentiated posterior mean of calendar-averaged conditional log OR for shorter stay; observed-outcome target"),"04_results/los_odds_ratio.csv")
 
 # Unadjusted endpoint summaries with actual outcome-specific denominators.
 ids <- c(new$id,"perop_comp_any")

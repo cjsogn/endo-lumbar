@@ -9,6 +9,15 @@ if(Sys.getenv("ENDO_MODEL_WORKER","")=="1") {
    seed=SEED,control=b$control,backend="cmdstanr",refresh=500,
    file=file.path(ROOT,"03_models",paste0(id,"_calendar")),file_refit="on_change")
   dg<-diagnostics(fit,id,b$control$max_treedepth)
+  write_csv(dg,paste0("08_qa/",id,"_sampling_initial.csv"))
+  if(!dg$pass) {
+   saveRDS(fit,file.path(ROOT,"03_models",paste0(id,"_calendar_initial.rds")))
+   fit<-update(fit,iter=4000,warmup=2000,
+    cores=as.integer(Sys.getenv("ENDO_CHAIN_CORES")),seed=SEED,
+    control=list(adapt_delta=.99,max_treedepth=14),file=NULL,refresh=1000)
+   saveRDS(fit,file.path(ROOT,"03_models",paste0(id,"_calendar.rds")))
+   dg<-diagnostics(fit,id,14)
+  }
   if(!dg$pass) stop(paste("Unresolved primary/perioperative sampler diagnostics:",id))
  }
 } else {

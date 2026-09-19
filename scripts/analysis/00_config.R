@@ -34,8 +34,9 @@ COVS <- c("age_z", "sex", "bmi_z", "smoking", "education", "employed_baseline",
  "prolapse_intraforaminal", "prolapse_extralateral", "stenosis_central")
 CONT <- c("age", "bmi", "odi_baseline", "eq5d_baseline", "nrs_back_baseline",
           "nrs_leg_baseline", "n_prior_surgeries")
-RHS <- paste(c("treatment", COVS, "ct1", "ct2"), collapse = " + ")
-RHS_PRIMARY <- paste(RHS, "+ treatment:ct1 + treatment:ct2")
+RHS_BASE <- paste(c("treatment", COVS, "ct1", "ct2"), collapse = " + ")
+RHS <- paste(RHS_BASE, "+ treatment:ct1 + treatment:ct2")
+RHS_PRIMARY <- RHS
 write_csv <- function(x, path) write.csv(x, file.path(ROOT, path), row.names = FALSE, na = "")
 standardize <- function(d) {
  for (v in CONT) d[[paste0(v, "_z")]] <- as.numeric(scale(d[[v]]))
@@ -69,6 +70,27 @@ gcomp <- function(fit, d, lower_better=TRUE, scale_factor=1) {
  }
  out$delta <- if(lower_better) out$MSD-out$ELD else out$ELD-out$MSD
  as.data.frame(out)
+}
+ordinal_calendar_contrast <- function(fit, d) {
+ # For cumulative-logit models, smaller eta implies shorter stay. Average
+ # individual conditional log odds ratios over the stated calendar distribution.
+ # Exponentiation gives a geometric mean conditional OR, not a marginal OR.
+ eta<-list()
+ for(a in c("MSD","ELD")) {
+  nd<-d;nd$treatment<-factor(a,levels=c("MSD","ELD"))
+  eta[[a]]<-posterior_linpred(fit,newdata=nd,incl_thres=FALSE)
+  stopifnot(length(dim(eta[[a]]))==2L,ncol(eta[[a]])==nrow(d))
+ }
+ delta<-rowMeans(eta$MSD-eta$ELD)
+ # Independent coefficient calculation checks direction and both interactions.
+ dr<-as_draws_df(fit)
+ expected<- -dr$b_treatmentELD
+ for(v in c("ct1","ct2")) {
+  nm<-paste0("b_treatmentELD:",v)
+  if(nm %in% names(dr)) expected<-expected-dr[[nm]]*mean(d[[v]])
+ }
+ stopifnot(max(abs(delta-expected))<1e-10)
+ data.frame(delta=delta)
 }
 diagnostics <- function(fit, id, max_depth=12L) {
  s <- posterior::summarise_draws(posterior::as_draws_array(fit))
