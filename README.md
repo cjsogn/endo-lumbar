@@ -42,6 +42,18 @@ Generated data, models, numerical summaries, diagnostics and logs are written be
 
 `00_config.R` contains the covariate names, priors, contrast definitions and seed. `04_model_scheduler.py` runs independent R processes with up to 14 CPU cores, allocated as 4 + 4 + 4 + 2. Each Bayesian fit retains four chains. Compilation is sequential to limit memory use.
 
+## Restored exploratory analyses
+
+`22_restore_exploratory.R` fits the four submitted exploratory subgroup models and causal forest with calendar adjustment, then runs a reconstructed post-hoc weighting analysis. The default runner includes this stage. It can also be selected by its exact filename.
+
+Subgroup models retain their original mean-coefficient Normal(0,1) priors, zero-inflated beta likelihood and thresholds. They include the primary calendar basis and both treatment interactions. The multilevel indicator is represented once. All posterior draws contribute to standardisation over each full subgroup. ODI-scale differences between subgroup-average effects are separate from conditional model-scale interaction coefficients. These are exploratory results without separate subgroup NI decisions.
+
+The causal forest uses all baseline predictors and calendar basis columns, with treatment supplied separately. It retains honesty, 4,000 trees, tuning of all supported parameters and out-of-bag nuisance estimates and conditional predictions. It uses 14 threads. Average-score inference, calibration, the original linear projection, split importance and conditional prediction summaries are saved. Split importance is not a causal modifier ranking.
+
+Weighting reconstructs the submitted stabilised inverse-probability and overlap comparison from its retained method description. The original generating script was not recovered. The logistic propensity model uses all cohort procedures and includes all baseline covariates and calendar basis columns. Stabilised weights are capped at the pooled 99th percentile. Outcome means use observed ODI only. Percentile intervals use 2,000 procedure bootstrap samples, refitting propensity and capping in every sample. Fourteen local socket workers process fixed, individually seeded resamples. Warnings are recorded, and a failed fit or nonfinite estimate prevents final interval output. No estimator or learner is substituted automatically.
+
+The weighting and forest estimates do not adjust for outcome nonresponse. Capping and overlap weighting also change the weighted population. The output includes arm-specific effective sample size, weight distributions and balance in both the full and observed-outcome cohorts. Subgroup and forest methods were registered as exploratory. Weighting is post hoc. These calendar updates and the weighting variance reconstruction were specified during revision before these refits, with earlier study results already known.
+
 ## Specifications and interpretation
 
 - Primary ODI, adjusted secondary and perioperative outcomes, operating time and negative controls use the same 27 baseline covariates, two natural cubic spline terms for calendar time (`ns(df=2)`) and both treatment-by-spline interactions. Primary-model sensitivity analyses retain the interactions, including their explicitly specified reduced adjustment sets.

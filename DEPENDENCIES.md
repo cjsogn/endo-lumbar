@@ -19,6 +19,7 @@ Versions installed during verification of this release. These are recorded versi
 | glmnet | 4.1.10 |
 | ranger | 0.18.0 |
 | xgboost | 3.2.1.1 |
+| grf | 2.6.1 |
 
 Install the packages explicitly before running the pipeline. CmdStan and cmdstanr must be configured separately. Python 3 uses only its standard library. The runner records installed package versions in the private output directory. Seeds are fixed in `00_config.R`, but bitwise equality of new sampling runs is not guaranteed across software versions, compilers or platforms.
 R version: 4.5.3 (2026-03-11). CmdStan version: 2.38.0.
