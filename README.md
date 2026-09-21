@@ -54,6 +54,12 @@ Weighting reconstructs the submitted stabilised inverse-probability and overlap 
 
 The weighting and forest estimates do not adjust for outcome nonresponse. Capping and overlap weighting also change the weighted population. The output includes arm-specific effective sample size, weight distributions and balance in both the full and observed-outcome cohorts. Subgroup and forest methods were registered as exploratory. Weighting is post hoc. These calendar updates and the weighting variance reconstruction were specified during revision before these refits, with earlier study results already known.
 
+## TMLE outcome coverage
+
+Complete-case checks cover the 17 submitted effectiveness outcomes plus day surgery, postoperative stay and patient-reported complications. All 17 effectiveness outcomes and day surgery also use outcome multiple imputation with 20 datasets, 10 iterations and seed 20260204. Every imputation contributes to Rubin pooling. All eight twelve-month effectiveness outcomes have censoring-weighted checks. A common model of ODI response supplies the follow-up weights, preserving the submitted proxy rather than claiming to model item-specific nonresponse. The smaller GLM/glmnet library is retained for MI and weighting. The observed-case library retains all four learners. The no-calendar day-surgery control remains an additional diagnostic.
+
+The published SAP specifies Gaussian priors and does not contain the Cauchy binary-covariate prior previously attributed to it. Binary logit priors and bounded-outcome priors are endpoint-specific implementation choices, as detailed in the Supplement. The public release does not include the registered Docker container, projection-predictive analysis or joint-covariate missingness sensitivity.
+
 ## Specifications and interpretation
 
 - Primary ODI, adjusted secondary and perioperative outcomes, operating time and negative controls use the same 27 baseline covariates, two natural cubic spline terms for calendar time (`ns(df=2)`) and both treatment-by-spline interactions. Primary-model sensitivity analyses retain the interactions, including their explicitly specified reduced adjustment sets.

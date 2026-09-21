@@ -1,5 +1,6 @@
 source(file.path(Sys.getenv("ENDO_CODE_DIR"), "00_config.R"))
 suppressPackageStartupMessages({library(SuperLearner);library(tmle);library(mice)})
+options(warn=1) # Keep diagnostic warnings in each endpoint log.
 PS<-sub("_z$","",COVS)
 # Native learners and their submitted hyperparameters are preserved. These
 # wrappers only allocate the available CPU threads to forest/boosting training.
@@ -11,8 +12,18 @@ SL.xgboost.concurrent<-function(...)SuperLearner::SL.xgboost(...,
 predict.SL.xgboost.concurrent<-SuperLearner:::predict.SL.xgboost
 full_lib<-c("SL.glm","SL.glmnet","SL.ranger.concurrent","SL.xgboost.concurrent")
 small_lib<-c("SL.glm","SL.glmnet")
-ids<-c("odi_3m_calendar","odi_12m_calendar","day_surgery_calendar","day_surgery_original",
-       "odi_3m_mi","odi_12m_mi","day_surgery_mi","odi_12m_ipcw")
+effectiveness<-c("odi_3m","odi_12m","nrs_back_3m","nrs_back_12m",
+ "nrs_leg_3m","nrs_leg_12m","eq5d_3m","eq5d_12m","responder_3m",
+ "rtw_3m","rtw_12m","analgesic_3m","analgesic_12m","satisfied_3m",
+ "satisfied_12m","gpe_success_3m","gpe_success_12m")
+continuous<-c("odi_3m","odi_12m","nrs_back_3m","nrs_back_12m",
+ "nrs_leg_3m","nrs_leg_12m","eq5d_3m","eq5d_12m","los_postop")
+lower_outcomes<-c(setdiff(continuous,c("eq5d_3m","eq5d_12m")),"analgesic_3m",
+ "analgesic_12m","pt_comp_any_3m")
+ids<-c(paste0(c(effectiveness,"day_surgery","los_postop","pt_comp_any_3m"),"_calendar"),
+ paste0(c(effectiveness,"day_surgery"),"_mi"),paste0(grep("12m$",effectiveness,value=TRUE),"_ipcw"),
+ "day_surgery_original")
+stopifnot(length(ids)==47L,!anyDuplicated(ids))
 extract_result<-function(fit,lower) {
  s<-fit$estimates$ATE;sign<-if(lower)-1 else 1
  data.frame(mean=sign*s$psi,se=sqrt(s$var.psi),
@@ -29,7 +40,9 @@ run_check<-function(id) {
  W<-as.data.frame(model.matrix(~.-1,data=d[vars]))
  stopifnot(nrow(W)==nrow(d),!anyNA(W))
  Y<-as.numeric(haven::zap_labels(d[[y]]));A<-as.integer(d$treatment=="ELD");cc<-!is.na(Y)
- family<-if(y=="day_surgery")"binomial" else "gaussian";lower<-family=="gaussian"
+ family<-if(y %in% continuous)"gaussian" else "binomial";lower<-y %in% lower_outcomes
+ stopifnot(any(cc),all(is.finite(Y[cc])))
+ if(family=="binomial")stopifnot(all(Y[cc] %in% 0:1))
  if(grepl("_mi$",id)) {
   impdat<-data.frame(Y=if(family=="binomial")factor(Y,levels=0:1) else Y,A=A,W)
   meth<-setNames(rep("",ncol(impdat)),names(impdat));meth["Y"]<-if(family=="binomial")"logreg" else "pmm"
@@ -42,6 +55,8 @@ run_check<-function(id) {
    stopifnot(!anyNA(yy))
    fit<-tmle::tmle(Y=yy,A=dk$A,W=dk[,-c(1,2),drop=FALSE],family=family,
     Q.SL.library=small_lib,g.SL.library=small_lib,cvQinit=TRUE,V.Q=5,V.g=5)
+   stopifnot(length(fit$Qinit$SL.library)==length(small_lib),
+    length(fit$g$SL.library)==length(small_lib))
    all[[k]]<-extract_result(fit,lower)
   }
   est<-do.call(rbind,all);stopifnot(nrow(est)==20,all(is.finite(est$mean)),all(is.finite(est$se)))
@@ -53,16 +68,24 @@ run_check<-function(id) {
  } else {
   weights<-rep(1,sum(cc));lib<-full_lib;V<-10
   if(grepl("_ipcw$",id)) {
-   R<-as.integer(cc)
+   # Preserve the submitted shared visit-response proxy for every 12-month endpoint.
+   # Item-specific missingness is not separately modelled by this sensitivity.
+   R<-as.integer(!is.na(d$odi_12m))
    ps<-SuperLearner(Y=R,X=data.frame(A=A,W),family=binomial(),SL.library=small_lib,cvControl=list(V=5))
    prob<-as.vector(ps$SL.predict);marg<-tapply(R,A,mean)
    wt<-ifelse(A==1,marg["1"],marg["0"])/pmax(prob,.01)
    cutoff<-unname(quantile(wt,.99));wt<-pmin(wt,cutoff);weights<-wt[cc];lib<-small_lib;V<-5
-   saveRDS(list(probability=prob,weights=wt,observed=cc,treatment=A,trim=cutoff,learner=ps),
-    file.path(ROOT,"08_qa/tmle_odi12_ipcw_weights.rds"))
+   saveRDS(list(probability=prob,weights=wt,observed=cc,response_proxy=R,treatment=A,trim=cutoff,learner=ps),
+    file.path(ROOT,"08_qa",paste0("tmle_",id,"_weights.rds")))
    write_csv(data.frame(min_probability=min(prob),max_probability=max(prob),
     max_weight=max(weights),trim=cutoff,effective_n=sum(weights)^2/sum(weights^2)),
-    "04_results/tmle_odi12_ipcw_weight_summary.csv")
+    paste0("04_results/tmle_",id,"_weight_summary.csv"))
+   if(y=="odi_12m") {
+    file.copy(file.path(ROOT,"08_qa",paste0("tmle_",id,"_weights.rds")),
+     file.path(ROOT,"08_qa/tmle_odi12_ipcw_weights.rds"),overwrite=TRUE)
+    file.copy(file.path(ROOT,paste0("04_results/tmle_",id,"_weight_summary.csv")),
+     file.path(ROOT,"04_results/tmle_odi12_ipcw_weight_summary.csv"),overwrite=TRUE)
+   }
   }
   fit<-tmle::tmle(Y=Y[cc],A=A[cc],W=W[cc,,drop=FALSE],family=family,
     Q.SL.library=lib,g.SL.library=lib,cvQinit=TRUE,V.Q=V,V.g=V,obsWeights=weights)
@@ -75,7 +98,7 @@ run_check<-function(id) {
    learner=c(names(fit$Qinit$coef),names(fit$g$coef)),weight=c(fit$Qinit$coef,fit$g$coef)),
    paste0("08_qa/tmle_",id,"_ensemble_weights.csv"))
  }
- s$id<-id;s$observed<-sum(cc);s$eligible<-nrow(d)
+ s$id<-id;s$observed<-sum(cc);s$eligible<-nrow(d);s$outcome<-y;s$family<-family;s$lower_better<-lower
  write_csv(s,paste0("04_results/tmle_",id,"_summary.csv"));print(s)
 }
 if(Sys.getenv("ENDO_LOAD_ONLY","")!="1") {
