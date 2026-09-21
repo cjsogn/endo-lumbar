@@ -1,8 +1,16 @@
+# Purpose: Import registry fields and construct the disc-herniation cohort.
+# Inputs: Authorised SPSS export at ENDO_LUMBAR_RAW_DATA.
+# Outputs: Coded source datasets and baseline-imputed cohort in 02_data/source.
+
 source(file.path(Sys.getenv("ENDO_CODE_DIR"), "00_config.R"))
-suppressPackageStartupMessages({library(dplyr);library(tidyr);library(tibble)})
-if(!nzchar(RAW_DATA) || !file.exists(RAW_DATA)) stop("Set ENDO_LUMBAR_RAW_DATA to the private SPSS registry export.")
-raw <- read_sav(RAW_DATA,encoding="latin1")
-stopifnot(!anyNA(raw$ForlopsID),!anyDuplicated(raw$ForlopsID))
+suppressPackageStartupMessages({
+  library(dplyr)
+  library(tidyr)
+  library(tibble)
+})
+if (!nzchar(RAW_DATA) || !file.exists(RAW_DATA)) stop("Set ENDO_LUMBAR_RAW_DATA to the private SPSS registry export.")
+raw <- read_sav(RAW_DATA, encoding = "latin1")
+stopifnot(!anyNA(raw$ForlopsID), !anyDuplicated(raw$ForlopsID))
 df <- raw %>%
   mutate(
     treatment = case_when(
@@ -13,11 +21,13 @@ df <- raw %>%
   ) %>%
   filter(!is.na(treatment))
 
-cat(sprintf("  After treatment group filter: %d procedures (ELD=%d, MSD=%d)\n",
-            nrow(df), sum(df$treatment == "ELD"), sum(df$treatment == "MSD")))
+cat(sprintf(
+  "  After treatment group filter: %d procedures (ELD=%d, MSD=%d)\n",
+  nrow(df), sum(df$treatment == "ELD"), sum(df$treatment == "MSD")
+))
 
 # =============================================================================
-# 3. DEFINE ANALYSIS POPULATIONS
+# Define analysis populations
 # =============================================================================
 # HovedInngrepV2V3: 1=Prolaps kirurgi, 2=Midtlinje dekompresjon, 3=Laminektomi,
 #                   5=Fusjonskirurgi, etc.
@@ -25,7 +35,7 @@ cat(sprintf("  After treatment group filter: %d procedures (ELD=%d, MSD=%d)\n",
 # LSSopr: 1=stenosis surgery, 0=no
 # OpIndCauda: cauda equina indication
 
-# Exclude cauda equina (SAP Section 3.2)
+# Exclude recorded cauda equina indications (published SAP, Section 1).
 df <- df %>% filter(OpIndCauda != 1 | is.na(OpIndCauda))
 cat(sprintf("  After cauda equina exclusion: %d\n", nrow(df)))
 
@@ -45,17 +55,21 @@ df <- df %>% filter(eligible == 1)
 cat(sprintf("  After procedure eligibility filter: %d\n", nrow(df)))
 
 # Population counts
-cat(sprintf("  Disc herniation population: %d (ELD=%d, MSD=%d)\n",
-            sum(df$pop_disc == 1),
-            sum(df$pop_disc == 1 & df$treatment == "ELD"),
-            sum(df$pop_disc == 1 & df$treatment == "MSD")))
-cat(sprintf("  Stenosis population: %d (ELD=%d, MSD=%d)\n",
-            sum(df$pop_stenosis == 1),
-            sum(df$pop_stenosis == 1 & df$treatment == "ELD"),
-            sum(df$pop_stenosis == 1 & df$treatment == "MSD")))
+cat(sprintf(
+  "  Disc herniation population: %d (ELD=%d, MSD=%d)\n",
+  sum(df$pop_disc == 1),
+  sum(df$pop_disc == 1 & df$treatment == "ELD"),
+  sum(df$pop_disc == 1 & df$treatment == "MSD")
+))
+cat(sprintf(
+  "  Stenosis population: %d (ELD=%d, MSD=%d)\n",
+  sum(df$pop_stenosis == 1),
+  sum(df$pop_stenosis == 1 & df$treatment == "ELD"),
+  sum(df$pop_stenosis == 1 & df$treatment == "MSD")
+))
 
 # =============================================================================
-# 4. BASELINE COVARIATES
+# Baseline covariates
 # =============================================================================
 
 df <- df %>%
@@ -84,22 +98,22 @@ df <- df %>%
 
     # Employment status at baseline
     employed_baseline = case_when(
-      ArbstatusPreV2V3 == 1 ~ 1L,           # Working (full/part time)
-      ArbstatusPreV2V3 %in% c(3:9) ~ 0L,    # Not working
+      ArbstatusPreV2V3 == 1 ~ 1L, # Working (full/part time)
+      ArbstatusPreV2V3 %in% c(3:9) ~ 0L, # Not working
       TRUE ~ NA_integer_
     ),
 
     # Sick leave (preserve NA when employment status is unknown)
     sick_leave = case_when(
       is.na(ArbstatusPreV2V3) ~ NA_integer_,
-      ArbstatusPreV2V3 %in% c(6, 7) ~ 1L,   # Fully or partially sick-listed
+      ArbstatusPreV2V3 %in% c(6, 7) ~ 1L, # Fully or partially sick-listed
       TRUE ~ 0L
     ),
 
     # Disability pension applied/receiving (preserve NA when employment status is unknown)
     disability = case_when(
       is.na(ArbstatusPreV2V3) ~ NA_integer_,
-      ArbstatusPreV2V3 == 9 ~ 1L,            # Disability pension
+      ArbstatusPreV2V3 == 9 ~ 1L, # Disability pension
       TRUE ~ 0L
     ),
 
@@ -149,7 +163,6 @@ df <- df %>%
       ),
       levels = c("ASA_1", "ASA_2", "ASA_3plus")
     ),
-
     depression_anxiety = as.integer(SykdDepresjonAngst == 1),
     chronic_pain = as.integer(SykdGeneralisertSmSyndr == 1),
 
@@ -191,8 +204,8 @@ df <- df %>%
 
     # Number of operated levels
     n_levels = as.integer(OpTh12L1 == 1) + as.integer(OpL1L2 == 1) +
-               as.integer(OpL23 == 1) + as.integer(OpL34 == 1) +
-               as.integer(OpL45 == 1) + as.integer(OpL5S1 == 1),
+      as.integer(OpL23 == 1) + as.integer(OpL34 == 1) +
+      as.integer(OpL45 == 1) + as.integer(OpL5S1 == 1),
     multilevel = as.integer(n_levels > 1),
 
     # Calendar time (days since start of study period)
@@ -214,7 +227,7 @@ df <- df %>%
   )
 
 # =============================================================================
-# 5. OUTCOME VARIABLES
+# Outcome variables
 # =============================================================================
 
 df <- df %>%
@@ -247,8 +260,8 @@ df <- df %>%
     # as a covariate in all models.
     rtw_3m = case_when(
       is.na(Arbstatus3mndV2V3) ~ NA_integer_,
-      Arbstatus3mndV2V3 == 1 ~ 1L,      # Full/part-time work
-      Arbstatus3mndV2V3 == 4 ~ NA_integer_,  # Retired: exclude from RTW
+      Arbstatus3mndV2V3 == 1 ~ 1L, # Full/part-time work
+      Arbstatus3mndV2V3 == 4 ~ NA_integer_, # Retired: exclude from RTW
       TRUE ~ 0L
     ),
     rtw_12m = case_when(
@@ -273,7 +286,7 @@ df <- df %>%
     ),
 
     # Patient satisfaction (dichotomized: 1-2 = satisfied, 3-5 = not)
-    # SAP: "Satisfied (very satisfied/satisfied) vs Not satisfied"
+    # Codes 1 and 2 define satisfaction. Codes 3 to 5 define non-satisfaction.
     satisfied_3m = case_when(
       is.na(Fornoyd3mnd) ~ NA_integer_,
       Fornoyd3mnd %in% c(1, 2) ~ 1L,
@@ -286,7 +299,7 @@ df <- df %>%
     ),
 
     # GPE (dichotomized: 1-2 = success, 3-7 = not)
-    # SAP: "Success (much better/better) vs Not success"
+    # Codes 1 and 2 define success. Codes 3 to 7 define non-success.
     gpe_success_3m = case_when(
       is.na(Nytte3mnd) ~ NA_integer_,
       Nytte3mnd %in% c(1, 2) ~ 1L,
@@ -391,7 +404,7 @@ df <- df %>%
   )
 
 # =============================================================================
-# 6. TREATMENT VARIABLE CODING
+# Treatment variable coding
 # =============================================================================
 df <- df %>%
   mutate(
@@ -421,15 +434,16 @@ impute_median_mode <- function(x) {
 
 
 # Define the overlap cohort before imputing baseline covariates.
-df_disc <- df %>% filter(pop_disc==1,surgery_date>=as.Date("2023-10-01")) %>%
- mutate(population="disc_herniation")
-rates <- vapply(df_disc[covariates],function(x)mean(is.na(x)),numeric(1))
+df_disc <- df %>%
+  filter(pop_disc == 1, surgery_date >= as.Date("2023-10-01")) %>%
+  mutate(population = "disc_herniation")
+rates <- vapply(df_disc[covariates], function(x) mean(is.na(x)), numeric(1))
 # This release implements the low-missingness baseline rule used in the study.
 # Stop on data needing a different missing-covariate model.
-if(any(rates>=.05)) stop("Baseline missingness exceeds the implemented median/mode rule. Review the data and analysis specification.")
+if (any(rates >= .05)) stop("Baseline missingness exceeds the implemented median/mode rule. Review the data and analysis specification.")
 df_disc_imp <- df_disc
-for(v in names(rates)[rates>0 & rates<.05]) df_disc_imp[[v]] <- impute_median_mode(df_disc_imp[[v]])
-saveRDS(df,file.path(ROOT,"02_data/source/df_all.rds"))
-saveRDS(df_disc,file.path(ROOT,"02_data/source/df_disc_raw.rds"))
-saveRDS(df_disc_imp,file.path(ROOT,"02_data/source/df_disc_imp.rds"))
-write_csv(data.frame(variable=names(rates),missing_fraction=rates),"04_results/baseline_missingness.csv")
+for (v in names(rates)[rates > 0 & rates < .05]) df_disc_imp[[v]] <- impute_median_mode(df_disc_imp[[v]])
+saveRDS(df, file.path(ROOT, "02_data/source/df_all.rds"))
+saveRDS(df_disc, file.path(ROOT, "02_data/source/df_disc_raw.rds"))
+saveRDS(df_disc_imp, file.path(ROOT, "02_data/source/df_disc_imp.rds"))
+write_csv(data.frame(variable = names(rates), missing_fraction = rates), "04_results/baseline_missingness.csv")

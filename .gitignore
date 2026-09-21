@@ -1,12 +1,13 @@
-# Default deny. Only explicitly reviewed source/documentation files can be added.
+# Default deny. Only listed analysis source and documentation can be added.
 *
 !/.gitignore
+!/DEPENDENCIES.md
 !/LICENSE
 !/README.md
-!/DEPENDENCIES.md
 !/RELEASE_FILES.txt
+!/REVIEW_GUIDE.md
+!/SAP_DEVIATIONS.md
 !/scripts/
-!/scripts/check_release.py
 !/scripts/analysis/
 !/scripts/analysis/00_config.R
 !/scripts/analysis/01_import_registry.R
@@ -25,4 +26,6 @@
 !/scripts/analysis/11_predictive_diagnostics.R
 !/scripts/analysis/12_finalize_result_tables.R
 !/scripts/analysis/13_descriptive_analyses.R
+!/scripts/analysis/14_exploratory_analyses.R
 !/scripts/analysis/run_all.R
+!/scripts/check_release.py
