@@ -29,12 +29,16 @@ stages <- c(
   "02_summarize_primary.R", "04_run_calendar_models.R", "05_primary_derived_sensitivities.R",
   "06_primary_model_sensitivities.R", "07_tmle_matched_checks.R", "08_selection_model.R",
   "09_model_and_population_audit.R", "11_predictive_diagnostics.R",
-  "12_finalize_result_tables.R", "13_descriptive_analyses.R", "14_exploratory_analyses.R"
+  "12_finalize_result_tables.R", "13_descriptive_analyses.R", "14_exploratory_analyses.R",
+  "15_discharge_descriptives.R", "16_followup_eligibility.R"
 )
 args <- commandArgs(trailingOnly = TRUE)
 if (length(args)) {
   if (any(!args %in% stages)) stop("Unknown stage. Supply exact stage filenames listed in run_all.R.")
   stages <- stages[stages %in% args]
+} else if (!nzchar(Sys.getenv("ENDO_FOLLOWUP_REFERENCE"))) {
+  stages <- setdiff(stages, "16_followup_eligibility.R")
+  cat("Follow-up eligibility sensitivity requires an explicit reference date and basis. See README.\n")
 }
 versions <- data.frame(package = required, version = vapply(required, function(p) as.character(packageVersion(p)), character(1)))
 write_csv(versions, "10_logs/package_versions.csv")

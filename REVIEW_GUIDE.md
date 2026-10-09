@@ -11,7 +11,8 @@ Start with the primary effect definition, cohort construction and missing-data h
 | 5 | `07_tmle_matched_checks.R`, `09_model_and_population_audit.R` | Learners, observed versus standardisation populations, pooling, censoring weights and targeting diagnostics |
 | 6 | `05_primary_derived_sensitivities.R`, `06_primary_model_sensitivities.R`, `08_selection_model.R` | Confounding and missingness sensitivity, priors, likelihoods and adjustment sets |
 | 7 | `11_predictive_diagnostics.R`, `12_finalize_result_tables.R` | Sampling checks, predictive assessment, influence diagnostics and summaries |
-| 8 | `13_descriptive_analyses.R`, `14_exploratory_analyses.R` | Clinical coding, subgroups, causal forest and bootstrap weighting |
+| 8 | `13_descriptive_analyses.R`, `14_exploratory_analyses.R`, `15_discharge_descriptives.R` | Clinical coding, planned versus actual discharge, historical discharge rates, subgroups, causal forest and bootstrap weighting |
+| 9 | `16_followup_eligibility.R` | Explicit date basis, unchanged fitting observations and restricted primary standardisation population |
 
 `run_all.R` and `04_model_scheduler.py` manage execution. They are dependencies and lower-priority files for methodological review. `scripts/check_release.py` checks package contents and does not analyse registry data.
 

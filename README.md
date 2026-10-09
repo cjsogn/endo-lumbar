@@ -41,6 +41,8 @@ Data, fitted models, numerical summaries, diagnostics and logs are written under
 | `12_finalize_result_tables.R` | Endpoint summaries, conditional-association checks and sampler diagnostics |
 | `13_descriptive_analyses.R` | Baseline characteristics, institutional case sequence, inferred corridor and recorded reoperations |
 | `14_exploratory_analyses.R` | Subgroup interactions, causal forest and propensity weighting |
+| `15_discharge_descriptives.R` | Planned-versus-actual discharge cross-tabulations and historical MSD discharge rates |
+| `16_followup_eligibility.R` | Primary ODI standardisation after restricting follow-up opportunity |
 | `04_model_scheduler.py`, `run_all.R` | Parallel scheduling and pipeline execution |
 
 The scheduler uses up to 14 CPU cores in independent processes, allocated as 4 + 4 + 4 + 2. Each Bayesian fit retains four chains. Compilation is sequential to limit memory use. The forest uses 14 threads and the weighting bootstrap uses 14 local socket workers.
@@ -55,17 +57,31 @@ The primary contrast is MSD minus ELD in ODI units. Positive values favour ELD. 
 
 Bounded and binary models fit observed outcomes and standardise predictions over their stated target cohorts. Gaussian models include latent missing outcomes through `mi()`. Deterministic baseline median/mode imputation is separate from outcome multiple imputation.
 
-Length of stay uses a cumulative-logit model. Its effect summary is the conditional log odds ratio for shorter stay averaged over the calendar dates of procedures with observed stay. Exponentiation gives a geometric mean conditional odds ratio, not a marginal common odds ratio or a difference in mean nights.
+Length of stay uses a cumulative-logit model. Its effect summary is the conditional log odds ratio for shorter stay averaged over the calendar dates of the full cohort, since date-derived stay is complete. Exponentiation gives a geometric mean conditional odds ratio, not a marginal common odds ratio or a difference in mean nights.
 
 ## TMLE and missing outcomes
 
-Observed-case TMLE covers 17 effectiveness outcomes, day surgery, postoperative stay and patient-reported complications. All 17 effectiveness outcomes and day surgery also have outcome multiple-imputation checks. All eight twelve-month effectiveness outcomes have censoring-weighted checks. A day-surgery model without calendar adjustment is an additional diagnostic, stored under the output key `day_surgery_original`.
+Observed-case TMLE covers 17 effectiveness outcomes, actual operation-day discharge, postoperative stay and patient-reported complications. All 17 effectiveness outcomes also have outcome multiple-imputation checks. Discharge dates are complete, so no outcome imputation is needed for the discharge endpoints. All eight twelve-month effectiveness outcomes have censoring-weighted checks.
+
+The analysis variable `day_surgery` means discharge on the operation date. It is derived from `UtskrivelseDato` and `OpDato`, independently of planned admission type. `los_postop` is the difference between those dates in calendar nights. The original local planned day-case flag and reported stay are preserved as `day_surgery_registered` and `los_postop_registered`.
 
 TMLE includes the calendar basis without explicit treatment-by-spline product columns. The observed-case learner library contains GLM, glmnet, ranger and xgboost. Imputation and censoring-weighted checks use GLM and glmnet. `cvQinit=TRUE` and learner cross-validation do not constitute full cross-fitting of both nuisance models. Required learners are not replaced automatically if fitting fails.
 
 Outcome imputation uses 20 datasets, 10 iterations and seed 20260204. Every dataset is analysed, and estimates and variances are combined with Rubin pooling through `mice::pool.scalar`. No single imputation supplies the final estimate.
 
 Censoring weights use a common model of twelve-month ODI response as a proxy for follow-up attendance. They are stabilised by treatment arm, use a probability floor of 0.01 and are capped at the pooled 99th percentile. This model does not separately describe item-specific nonresponse.
+
+## Follow-up opportunity sensitivity
+
+This optional stage requires an explicit reference date and its evidential basis:
+
+```sh
+export ENDO_FOLLOWUP_REFERENCE="2026-03-03"
+export ENDO_FOLLOWUP_REFERENCE_BASIS="SPSS file creation date"
+Rscript scripts/analysis/run_all.R 16_followup_eligibility.R
+```
+
+The SPSS header records file creation on 3 March 2026, and NORspine supplied the extract that day. The provider also confirmed inclusion of twelve-month responses from January and February 2026. These records establish the export date and the inclusion of follow-up in early 2026, but not an exact database freeze or individual questionnaire dates. If a registry cutoff is verified, use that date and `confirmed registry cutoff` as its basis. The routine excludes surgery after the date three calendar months before the reference. It reuses the primary posterior only if no observed ODI is excluded and every model-input row matches the retained fit. Baseline fills, scaling, calendar basis and priors remain fixed. Only the population over which predictions are averaged changes. If any observed outcome is excluded, the routine stops because a refit is required. Without a reference date, the default pipeline announces that this optional stage is not run.
 
 ## Exploratory analyses
 
@@ -81,6 +97,6 @@ The weighting and forest analyses do not adjust for outcome nonresponse. Capping
 
 Twelve-month effectiveness analyses are exploratory. Case order describes the registry-recorded institutional sequence and does not identify individual surgeons' experience. Corridor is inferred from approach codes. The same-level reoperation flag is a proxy and cannot adjudicate residual versus recurrent disc.
 
-Each script states its inputs and outputs. Existing numerical output keys are retained so downstream stages can locate their inputs. The runner records installed package versions. Seeds are fixed, but exact binary equality across software versions, compilers and platforms is not assumed.
+Each script states its inputs and outputs. Output filenames use endpoint identifiers shared across pipeline stages. The runner records installed package versions. Seeds are fixed, but exact binary equality across software versions, compilers and platforms is not assumed.
 
 Run `python3 scripts/check_release.py` to verify the file allowlist and source checks. Use `--staged` to check the Git index before committing. `RELEASE_FILES.txt` lists the permitted contents.

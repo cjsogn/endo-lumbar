@@ -7,6 +7,16 @@ d <- readRDS(file.path(ROOT, "02_data/source/df_disc_imp.rds"))
 raw <- readRDS(file.path(ROOT, "02_data/source/df_disc_raw.rds"))
 stopifnot(identical(d$ForlopsID, raw$ForlopsID), !anyDuplicated(d$ForlopsID))
 d <- standardize(d)
+# Local planned day-case coding and actual operation-day discharge are distinct.
+d$day_surgery_registered <- d$day_surgery
+d$los_postop_registered <- d$los_postop
+discharge_date <- as.Date(d$UtskrivelseDato, format = "%Y-%m-%d")
+postoperative_nights <- as.numeric(discharge_date - as.Date(d$OpDato))
+stopifnot(!anyNA(postoperative_nights), all(postoperative_nights >= 0))
+observed_stay <- !is.na(d$los_postop_registered)
+stopifnot(all(d$los_postop_registered[observed_stay] == postoperative_nights[observed_stay]))
+d$day_surgery <- as.integer(postoperative_nights == 0)
+d$los_postop <- postoperative_nights
 for (tp in c("3m", "12m")) {
   field <- if (tp == "3m") "EqangstV33mnd" else "EqangstV312mnd"
   z <- haven::zap_labels(d[[field]])
@@ -103,6 +113,16 @@ stopifnot(
   nrow(dict) == ncol(raw), !anyDuplicated(dict$variable)
 )
 write_csv(dict, "02_data/derived/data_dictionary.csv")
+write_csv(data.frame(
+  variable = c("day_surgery", "los_postop", "day_surgery_registered", "los_postop_registered"),
+  source = c("OpDato and UtskrivelseDato", "OpDato and UtskrivelseDato", "Dagkirurgi", "LiggetidPostOp"),
+  definition = c(
+    "1 if discharge date equals operation date, otherwise 0; independent of planned admission type",
+    "Discharge date minus operation date in calendar nights",
+    "Original local planned day-case flag: codes 1 and 0, with code 9 treated as missing",
+    "Original separately exported postoperative-stay value, before derivation from dates"
+  )
+), "02_data/derived/derived_endpoint_dictionary.csv")
 writeLines(
   c(capture.output(sessionInfo()), "No patient-level data are printed in logs."),
   file.path(ROOT, "10_logs/data_preparation_session.txt")

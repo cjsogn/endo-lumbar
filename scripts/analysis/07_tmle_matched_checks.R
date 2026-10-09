@@ -38,10 +38,9 @@ lower_outcomes <- c(
 )
 ids <- c(
   paste0(c(effectiveness, "day_surgery", "los_postop", "pt_comp_any_3m"), "_calendar"),
-  paste0(c(effectiveness, "day_surgery"), "_mi"), paste0(grep("12m$", effectiveness, value = TRUE), "_ipcw"),
-  "day_surgery_original"
+  paste0(effectiveness, "_mi"), paste0(grep("12m$", effectiveness, value = TRUE), "_ipcw")
 )
-stopifnot(length(ids) == 47L, !anyDuplicated(ids))
+stopifnot(length(ids) == 45L, !anyDuplicated(ids))
 extract_result <- function(fit, lower) {
   s <- fit$estimates$ATE
   sign <- if (lower) -1 else 1
@@ -51,6 +50,7 @@ extract_result <- function(fit, lower) {
   )
 }
 run_check <- function(id) {
+  if (!id %in% ids) stop("Unknown TMLE analysis identifier.")
   con <- file(file.path(ROOT, "10_logs", paste0("tmle_", id, ".log")), "wt")
   sink(con)
   sink(con, type = "message")
@@ -63,10 +63,10 @@ run_check <- function(id) {
     add = TRUE
   )
   set.seed(SEED)
-  y <- sub("_(calendar|original|mi|ipcw)$", "", id)
+  y <- sub("_(calendar|mi|ipcw)$", "", id)
   d <- readRDS(file.path(ROOT, "02_data/derived", if (grepl("12m", y))
     "cohort_12m_date_eligible.rds" else "cohort_3m.rds"))
-  vars <- c(PS, if (!grepl("original$", id)) c("ct1", "ct2"))
+  vars <- c(PS, "ct1", "ct2")
   W <- as.data.frame(model.matrix(~ . - 1, data = d[vars]))
   stopifnot(nrow(W) == nrow(d), !anyNA(W))
   Y <- as.numeric(haven::zap_labels(d[[y]]))
@@ -134,16 +134,6 @@ run_check <- function(id) {
         ),
         paste0("04_results/tmle_", id, "_weight_summary.csv")
       )
-      if (y == "odi_12m") {
-        file.copy(file.path(ROOT, "08_qa", paste0("tmle_", id, "_weights.rds")),
-          file.path(ROOT, "08_qa/tmle_odi12_ipcw_weights.rds"),
-          overwrite = TRUE
-        )
-        file.copy(file.path(ROOT, paste0("04_results/tmle_", id, "_weight_summary.csv")),
-          file.path(ROOT, "04_results/tmle_odi12_ipcw_weight_summary.csv"),
-          overwrite = TRUE
-        )
-      }
     }
     fit <- tmle::tmle(
       Y = Y[cc], A = A[cc], W = W[cc, , drop = FALSE], family = family,

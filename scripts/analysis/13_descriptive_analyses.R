@@ -8,6 +8,26 @@ suppressPackageStartupMessages({
   library(tableone)
 })
 df_disc <- readRDS(file.path(ROOT, "02_data/source/df_disc_raw.rds"))
+for (v in c("L34", "L45", "L5S1")) {
+  source_value <- as.numeric(haven::zap_labels(df_disc[[paste0("Op", v)]]))
+  stopifnot(length(source_value) == nrow(df_disc), all(source_value[!is.na(source_value)] %in% 0:1))
+  df_disc[[paste0("level_", v)]] <- source_value
+}
+binary_vars <- c(
+  "employed_baseline", "sick_leave", "disability", "analgesic_baseline",
+  "motor_deficit", "depression_anxiety", "chronic_pain", "prior_surgery_any",
+  "multilevel", "spondylolisthesis", "scoliosis", "stenosis_central",
+  "prolapse_intraforaminal", "prolapse_extralateral", "level_L34", "level_L45", "level_L5S1"
+)
+duration_vars <- c("symptom_duration_back", "symptom_duration_leg")
+duration_labels <- c(
+  "No symptoms", "Less than 3 months", "3 to 12 months",
+  "More than 12 but less than 24 months", "More than 24 months"
+)
+for (v in duration_vars) {
+  stopifnot(all(df_disc[[v]][!is.na(df_disc[[v]])] %in% 1:5))
+  df_disc[[v]] <- factor(df_disc[[v]], levels = 1:5, labels = duration_labels)
+}
 table1_vars <- c(
   # Demographics
   "age", "sex", "bmi", "smoking",
@@ -33,10 +53,10 @@ table1_vars <- c(
 # Identify factor vs numeric variables
 cat_vars <- c(
   "sex", "smoking", "education", "asa_cat",
-  "prior_surgery", "approach", "surgery_year"
+  "prior_surgery", "approach", "surgery_year", binary_vars, duration_vars
 )
 nonnormal_vars <- c(
-  "n_prior_surgeries", "symptom_duration_back", "symptom_duration_leg",
+  "n_prior_surgeries",
   "n_levels", "los_total", "operating_time"
 )
 
@@ -75,6 +95,16 @@ write.csv(
 
 wr <- function(x, f) write_csv(x, file.path("04_results", f))
 d <- readRDS(file.path(ROOT, '02_data/derived/cohort_3m.rds'))
+# Keep full precision for subsequent display rounding of nonresponse comparisons.
+response_baseline <- bind_rows(lapply(c(FALSE, TRUE), function(missing_odi) {
+  x <- d[is.na(d$odi_3m) == missing_odi, ]
+  bind_rows(lapply(c("age", "bmi", "odi_baseline", "eq5d_baseline",
+                    "nrs_back_baseline", "nrs_leg_baseline"), function(v) {
+    data.frame(odi_missing = missing_odi, variable = v, n = nrow(x),
+               mean = mean(x[[v]]), sd = sd(x[[v]]))
+  }))
+}))
+wr(response_baseline, "baseline_by_odi_response.csv")
 raw <- readRDS(file.path(ROOT, '02_data/source/df_all.rds'))
 lc <- raw %>%
   filter(ForlopsID %in% d$ForlopsID, treatment == 'ELD') %>%

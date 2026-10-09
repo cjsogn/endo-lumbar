@@ -23,5 +23,7 @@ scripts/analysis/11_predictive_diagnostics.R
 scripts/analysis/12_finalize_result_tables.R
 scripts/analysis/13_descriptive_analyses.R
 scripts/analysis/14_exploratory_analyses.R
+scripts/analysis/15_discharge_descriptives.R
+scripts/analysis/16_followup_eligibility.R
 scripts/analysis/run_all.R
 scripts/check_release.py

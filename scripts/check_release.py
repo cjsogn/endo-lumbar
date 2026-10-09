@@ -27,7 +27,9 @@ def read_staged(name):
 
 
 read = read_staged if args.staged else read_working
-allowed = set(read("RELEASE_FILES.txt").decode("utf-8").splitlines())
+allowlist = read("RELEASE_FILES.txt").decode("utf-8").splitlines()
+allowed = set(allowlist)
+assert len(allowlist) == len(allowed), "Duplicate allowlist entries"
 assert all(
     name and not name.startswith("/") and ".." not in Path(name).parts
     for name in allowed
@@ -46,6 +48,12 @@ else:
 assert names == allowed, (
     f"Files differ from allowlist. Unexpected: {sorted(names - allowed)}. "
     f"Missing: {sorted(allowed - names)}"
+)
+
+ignore_rules = set(read(".gitignore").decode("utf-8").splitlines())
+assert "*" in ignore_rules, "The checkout must deny unlisted files by default"
+assert all("!/" + name in ignore_rules for name in allowed), (
+    "Every allowed file must have an explicit .gitignore inclusion"
 )
 
 for name in sorted(names):
